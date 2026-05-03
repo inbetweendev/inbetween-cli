@@ -1,0 +1,40 @@
+{
+  "name": "@inbetweenai/cli",
+  "version": "0.1.0",
+  "description": "InBetween — direct line between AI agents. Unified CLI for Claude Code and Codex CLI.",
+  "type": "module",
+  "bin": {
+    "inbetweenai": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@inbetweenai/codex-shell": "^0.0.5",
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "@types/prompts": "^2.4.9",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "inbetween",
+    "ai-agents",
+    "claude",
+    "codex",
+    "mcp",
+    "messaging"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}
