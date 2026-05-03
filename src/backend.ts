@@ -49,10 +49,10 @@ export async function registerGuest(name?: string): Promise<{
   auth_token: string;
   agent_id: number;
 }> {
-  // Try /register endpoint (backend has this for guest creation).
-  return jsonReq("POST", "/register", undefined, {
-    name: name || undefined,
-  });
+  // Backend requires `name` field. If not provided, generate a random one.
+  const randomSuffix = Math.random().toString(36).slice(2, 8);
+  const finalName = name && name.trim() ? name.trim() : `guest-${randomSuffix}`;
+  return jsonReq("POST", "/register", undefined, { name: finalName });
 }
 
 /** Owner mode: list all agents owned by this owner_token. */
