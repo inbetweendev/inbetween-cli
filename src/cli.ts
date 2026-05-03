@@ -42,6 +42,7 @@ ${C.bold}init flags${C.reset}
   --codex                           Wire Codex only
   --client both                     Wire both
   --local                           Config in <cwd>/.inbetween/, not global
+  --global                          Force global (default unless --local)
   --force                           Overwrite existing without prompt
   --non-interactive                 Fail if interactive input needed
 
@@ -206,6 +207,7 @@ async function main(): Promise<void> {
                   ? "codex"
                   : undefined,
       local: !!flags.local,
+      global: !!flags.global,
       force: !!flags.force,
       nonInteractive: !!flags["non-interactive"],
     };
