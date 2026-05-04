@@ -1,5 +1,5 @@
 import prompts from "prompts";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { ok, err, info, C } from "./banner.js";
@@ -26,11 +26,17 @@ function loadOwnerLocal(): OwnerState | null {
 }
 
 function saveOwnerLocal(token: string, owner_id?: string) {
-  mkdirSync(dirname(OWNER_FILE), { recursive: true });
-  writeFileSync(
-    OWNER_FILE,
-    JSON.stringify({ owner_token: token, owner_id, saved_at: new Date().toISOString() }, null, 2),
+  // ~/.inbetween/ created with 0700, owner.json with 0600. On POSIX umask
+  // can mask the mode flag, so chmodSync forces the final perms regardless.
+  // On Windows mode/chmod are no-ops; per-user homedir ACLs already isolate.
+  mkdirSync(dirname(OWNER_FILE), { recursive: true, mode: 0o700 });
+  const payload = JSON.stringify(
+    { owner_token: token, owner_id, saved_at: new Date().toISOString() },
+    null,
+    2,
   );
+  writeFileSync(OWNER_FILE, payload, { mode: 0o600 });
+  try { chmodSync(OWNER_FILE, 0o600); } catch {}
 }
 
 function clearOwnerLocal() {
