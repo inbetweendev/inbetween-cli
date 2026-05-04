@@ -35,12 +35,18 @@ function readClaudeJson(path: string): ClaudeJson {
   }
 }
 
-/** Write Claude MCP entry. `local=true` writes <cwd>/.mcp.json (project-scoped). */
+/**
+ * Write Claude MCP entry. `local=true` writes <cwd>/.mcp.json
+ * (project-scoped, picked up automatically by Claude Code in that folder).
+ *
+ * Identity-free: the entry has no INBETWEEN_AUTH_TOKEN env var. Identity
+ * comes from the runtime owner.json (written by `inbetweenai login`) and
+ * per-chat onboarding prompts pasted inside Claude.
+ */
 export function writeClaudeMcp(opts: {
-  configFile: string; // absolute path to InBetween config.json
   local?: boolean;
   cwd?: string;
-}): string {
+} = {}): string {
   const cwd = opts.cwd || process.cwd();
   const path = opts.local ? claudeProjectMcpPath(cwd) : claudeUserConfigPath();
   const json = readClaudeJson(path);
@@ -51,12 +57,10 @@ export function writeClaudeMcp(opts: {
     ? {
         command: "cmd",
         args: ["/c", "npx", "-y", MCP_PACKAGE],
-        env: { INBETWEEN_CONFIG_PATH: opts.configFile },
       }
     : {
         command: "npx",
         args: ["-y", MCP_PACKAGE],
-        env: { INBETWEEN_CONFIG_PATH: opts.configFile },
       };
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(json, null, 2) + "\n");
@@ -121,12 +125,18 @@ function stripExistingInbetweenBlock(toml: string): string {
   return next.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
 }
 
-/** Write Codex MCP entry. `local=true` writes <cwd>/.inbetween/codex/config.toml (used with CODEX_HOME). */
+/**
+ * Write Codex MCP entry. `local=true` writes
+ * <cwd>/.inbetween/codex/config.toml (used together with CODEX_HOME so
+ * Codex picks it up only when launched from this folder).
+ *
+ * Identity-free: no INBETWEEN_AUTH_TOKEN. Auth comes from owner.json
+ * + onboarding prompts pasted inside Codex.
+ */
 export function writeCodexMcp(opts: {
-  configFile: string; // absolute path to InBetween config.json
   local?: boolean;
   cwd?: string;
-}): string {
+} = {}): string {
   const cwd = opts.cwd || process.cwd();
   const path = opts.local ? codexLocalConfigPath(cwd) : codexHomeConfigPath();
   let existing = "";
@@ -139,7 +149,6 @@ export function writeCodexMcp(opts: {
   // duplicates that crash Codex's TOML parser.
   existing = stripExistingInbetweenBlock(existing);
 
-  const escapedConfigFile = opts.configFile.replace(/\\/g, "\\\\");
   const command = IS_WIN ? "cmd" : "npx";
   const args = IS_WIN ? ["/c", "npx", "-y", MCP_PACKAGE] : ["-y", MCP_PACKAGE];
   const argsToml = JSON.stringify(args);
@@ -147,7 +156,6 @@ export function writeCodexMcp(opts: {
 [mcp_servers.inbetween]
 command = "${command}"
 args = ${argsToml}
-env = { INBETWEEN_CONFIG_PATH = "${escapedConfigFile}", INBETWEEN_DISABLE_WS = "1" }
 startup_timeout_sec = 30
 ${MCP_BLOCK_END}
 `;

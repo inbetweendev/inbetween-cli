@@ -1,25 +1,15 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
-import {
-  loadConfig,
-  activeAuthToken,
-  activeAgentName,
-  isOwnerMode,
-  findAgentByName,
-  saveConfig,
-} from "./config.js";
-import { codexLocalHome } from "./mcp-write.js";
-import { resolveConfigPath, IS_WIN } from "./paths.js";
-import { printBanner, ok, info, warn, err } from "./banner.js";
 import { existsSync } from "node:fs";
+import { codexLocalHome, IS_WIN } from "./paths.js";
+import { getOwnerState } from "./auth.js";
+import { warn, err, info, C } from "./banner.js";
 
 interface RunOpts {
   ide: "claude" | "codex";
-  agent?: string; // owner-mode: switch active agent
   dryRun?: boolean;
   noDefaults?: boolean;
-  configPath?: string; // override
-  passthroughArgs: string[]; // user flags after subcommand
+  passthroughArgs: string[];
 }
 
 const CLAUDE_DEFAULT_FLAGS = [
@@ -28,154 +18,96 @@ const CLAUDE_DEFAULT_FLAGS = [
   "--dangerously-skip-permissions",
 ];
 
-export async function run(opts: RunOpts): Promise<void> {
-  // Load config.
-  const cfgPath = opts.configPath || resolveConfigPath();
-  if (!cfgPath) {
-    err("No InBetween config found.");
-    err(`Run: ${IS_WIN ? "" : "$ "}inbetweenai init`);
-    process.exit(1);
-  }
-  const loaded = loadConfig();
-  if (!loaded) {
-    err(`Failed to read config at ${cfgPath}`);
-    process.exit(1);
-  }
-  const config = loaded.config;
-
-  // Owner-mode: handle --agent switch.
-  if (opts.agent) {
-    if (!isOwnerMode(config)) {
-      err(`--agent only valid in owner mode (config has owner_token)`);
-      process.exit(1);
-    }
-    const target = findAgentByName(config, opts.agent);
-    if (!target) {
-      err(`Agent @${opts.agent} not found in your owner account.`);
-      err(
-        `Available: ${(config.agents || []).map((a) => "@" + a.name).join(", ")}`
-      );
-      process.exit(1);
-    }
-    // Switch active_agent in-memory (don't persist to disk for one-shot use).
-    config.active_agent = opts.agent;
-  }
-
-  const agentName = activeAgentName(config);
-  const authToken = activeAuthToken(config);
-  if (!authToken || !agentName) {
-    err("No active agent in config. Run: inbetweenai init");
-    process.exit(1);
-  }
-
-  // Multi-IDE same-agent warning (heuristic — backend doesn't expose live
-  // session info via simple GET).
-  // For V0.1 just print a note about potential conflict.
-
-  if (opts.ide === "claude") {
-    await runClaude({ config, agentName, configPath: loaded.path, opts });
+function printBootBanner(ide: "claude" | "codex") {
+  const ideLabel = ide === "claude" ? "Claude" : "Codex";
+  const owner = getOwnerState();
+  const lines = [
+    "",
+    `  ${C.bold}${C.cyan}╭─────────────────────────────────────────────╮${C.reset}`,
+    `  ${C.bold}${C.cyan}│${C.reset}  ${C.bold}InBetween${C.reset} ${C.dim}×${C.reset} ${C.bold}${ideLabel}${C.reset}                          ${C.bold}${C.cyan}│${C.reset}`,
+    `  ${C.bold}${C.cyan}│${C.reset}  ${C.dim}direct line between AI agents${C.reset}              ${C.bold}${C.cyan}│${C.reset}`,
+    `  ${C.bold}${C.cyan}╰─────────────────────────────────────────────╯${C.reset}`,
+    "",
+  ];
+  if (owner) {
+    lines.push(`  ${C.green}●${C.reset} owner authenticated`);
   } else {
-    await runCodex({ config, agentName, configPath: loaded.path, opts });
+    lines.push(
+      `  ${C.dim}You're not logged in as an owner yet.${C.reset}`,
+      `  ${C.dim}Inside ${ideLabel}, paste your owner token via owner_login(\"own_...\").${C.reset}`,
+      `  ${C.dim}Or run \`inbetweenai login\` and skip the paste.${C.reset}`,
+    );
+  }
+  lines.push(
+    "",
+    `  ${C.dim}Inside ${ideLabel}, paste any chat onboarding prompt to act as${C.reset}`,
+    `  ${C.dim}that agent (calls agent_login under the hood).${C.reset}`,
+    "",
+  );
+  process.stderr.write(lines.join("\n") + "\n");
+}
+
+export async function run(opts: RunOpts): Promise<void> {
+  if (opts.ide === "claude") {
+    await runClaude(opts);
+  } else {
+    await runCodex(opts);
   }
 }
 
-async function runClaude(args: {
-  config: any;
-  agentName: string;
-  configPath: string;
-  opts: RunOpts;
-}) {
-  const { config, agentName, configPath, opts } = args;
-
+async function runClaude(opts: RunOpts) {
   const flags = opts.noDefaults
     ? [...opts.passthroughArgs]
     : [...CLAUDE_DEFAULT_FLAGS, ...opts.passthroughArgs];
 
   if (opts.dryRun) {
-    process.stderr.write(`\n[would spawn] claude ${flags.join(" ")}\n`);
-    process.stderr.write(`[active agent] @${agentName}\n`);
-    process.stderr.write(`[config] ${configPath}\n\n`);
+    process.stderr.write(`\n[would spawn] claude ${flags.join(" ")}\n\n`);
     return;
   }
 
-  printBanner({
-    ide: "claude",
-    agentName,
-    backendUrl: config.backend_url,
-    configPath,
-  });
-
-  // For owner-mode --agent switch, we need MCP to start with this agent.
-  // Pass token override via env var INBETWEEN_AUTH_TOKEN — MCP server respects
-  // it (as of @inbetweenai/mcp@0.1.6+ if implemented; otherwise becomes harmless).
-  const env = { ...process.env };
-  if (opts.agent && config.agents) {
-    const target = findAgentByName(config, opts.agent);
-    if (target) {
-      env.INBETWEEN_AUTH_TOKEN = target.auth_token;
-      env.INBETWEEN_AGENT_NAME = target.name;
-    }
-  }
+  printBootBanner("claude");
 
   const child = spawn("claude", flags, {
     stdio: "inherit",
     shell: IS_WIN,
-    env,
+    env: process.env,
   });
   child.on("error", (e) => {
     err(`Failed to spawn 'claude': ${e.message}`);
-    err(
-      `Is Claude Code installed? npm install -g @anthropic-ai/claude-code`
-    );
+    info("Is Claude Code installed? npm install -g @anthropic-ai/claude-code");
     process.exit(1);
   });
-  child.on("exit", (code) => {
-    process.exit(code ?? 0);
-  });
+  child.on("exit", (code) => process.exit(code ?? 0));
 }
 
-async function runCodex(args: {
-  config: any;
-  agentName: string;
-  configPath: string;
-  opts: RunOpts;
-}) {
-  const { config, agentName, configPath, opts } = args;
-
+async function runCodex(opts: RunOpts) {
   if (opts.dryRun) {
     process.stderr.write(
-      `\n[would spawn] inbetween-codex (with --dangerously-bypass-approvals-and-sandbox + ${opts.passthroughArgs.join(" ")})\n`
+      `\n[would spawn] inbetween-codex (with --dangerously-bypass-approvals-and-sandbox + ${opts.passthroughArgs.join(" ")})\n\n`,
     );
-    process.stderr.write(`[active agent] @${agentName}\n`);
-    process.stderr.write(`[config] ${configPath}\n\n`);
     return;
   }
 
-  // Resolve @inbetweenai/codex-shell path.
+  // Resolve @inbetweenai/codex-shell path. It's a peer-bundled wrapper that
+  // injects messages into Codex via app-server JSON-RPC; without it Codex
+  // falls back to MCP-only (no live push since Codex doesn't render
+  // notifications/claude/channel natively).
   const require = createRequire(import.meta.url);
   let codexShellEntry: string;
   try {
     codexShellEntry = require.resolve("@inbetweenai/codex-shell/src/index.mjs");
   } catch {
-    err("Cannot find @inbetweenai/codex-shell package — try: npm install -g @inbetweenai/cli@latest");
+    err("Codex wrapper not found. Try: npm install -g @inbetweenai/cli@latest");
     process.exit(1);
   }
 
+  printBootBanner("codex");
+
   const env = { ...process.env };
-  // Tell codex-shell which config to use.
-  env.INBETWEEN_CONFIG_PATH = configPath;
-  // CODEX_HOME for --local mode (project-scoped Codex MCP).
+  // CODEX_HOME for project-scoped MCP if user installed --local in this folder.
   const codexHome = codexLocalHome();
   if (existsSync(codexHome)) {
     env.CODEX_HOME = codexHome;
-  }
-  // Owner-mode --agent override.
-  if (opts.agent && config.agents) {
-    const target = findAgentByName(config, opts.agent);
-    if (target) {
-      env.INBETWEEN_AUTH_TOKEN = target.auth_token;
-      env.INBETWEEN_AGENT_NAME = target.name;
-    }
   }
 
   const child = spawn(process.execPath, [codexShellEntry, ...opts.passthroughArgs], {
@@ -186,7 +118,5 @@ async function runCodex(args: {
     err(`Failed to spawn codex wrapper: ${e.message}`);
     process.exit(1);
   });
-  child.on("exit", (code) => {
-    process.exit(code ?? 0);
-  });
+  child.on("exit", (code) => process.exit(code ?? 0));
 }

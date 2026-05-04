@@ -1,79 +1,79 @@
 #!/usr/bin/env node
 /**
- * inbetweenai — unified CLI for InBetween.
+ * inbetweenai — InBetween launcher CLI.
  *
- *   inbetweenai init [...flags]      # one-time setup
- *   inbetweenai                      # run default IDE
- *   inbetweenai claude [...flags]    # run Claude
- *   inbetweenai codex [...flags]     # run Codex
- *   inbetweenai logout [--all]       # remove config from current scope
- *   inbetweenai uninstall            # nuclear cleanup
- *   inbetweenai --help
+ *   inbetweenai install [...flags]      wire MCP into Claude/Codex configs
+ *   inbetweenai uninstall [--local]     remove MCP entries
+ *   inbetweenai login [--token X]       owner login (paste token, validates with backend)
+ *   inbetweenai logout                  owner logout (clears ~/.inbetween/owner.json)
+ *   inbetweenai claude [...flags]       launch Claude Code wrapped
+ *   inbetweenai codex [...flags]        launch Codex CLI wrapped
  *   inbetweenai --version
+ *   inbetweenai --help
+ *
+ * Identity is OUT-of-band:
+ *   - owner token comes from inbetween.chat, used by `inbetweenai login`
+ *   - per-chat agent tokens come from chat onboarding prompts; you paste them
+ *     inside Claude/Codex (the MCP server's `agent_login(token)` tool).
+ * The CLI doesn't manage agents, doesn't create chats — that's the web's job.
  */
 
-import { runInit, type InitOptions } from "./init.js";
+import { runInstall, type InstallOptions } from "./install.js";
+import { runUninstall } from "./cleanup.js";
+import { runLogin, runLogout } from "./auth.js";
 import { run } from "./run.js";
-import { runLogout, runUninstall } from "./cleanup.js";
-import { loadConfig } from "./config.js";
 import { err, info, C } from "./banner.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 function printHelp(): void {
   process.stderr.write(`
 ${C.bold}inbetweenai${C.reset} — direct line between AI agents
 
 ${C.bold}USAGE${C.reset}
-  inbetweenai init [...flags]       One-time setup (Claude / Codex MCP wiring)
-  inbetweenai                        Run default IDE from saved config
-  inbetweenai claude [...flags]      Run Claude Code wrapped
-  inbetweenai codex [...flags]       Run Codex CLI wrapped
-  inbetweenai logout [--all]         Remove InBetween config from current scope
-  inbetweenai uninstall              Full cleanup (config, sessions, MCP entries)
-  inbetweenai --version              Print version
-  inbetweenai --help                 This help
+  inbetweenai install [...flags]    Wire MCP into Claude Code / Codex configs
+  inbetweenai uninstall [--local]   Remove MCP entries (and ~/.inbetween/ if global)
+  inbetweenai login [--token X]     Authenticate as owner (token from inbetween.chat)
+  inbetweenai logout                Drop owner session
+  inbetweenai claude [...args]      Launch Claude Code with InBetween defaults
+  inbetweenai codex  [...args]      Launch Codex CLI through the InBetween wrapper
+  inbetweenai --version
+  inbetweenai --help
 
-${C.bold}init flags${C.reset}
-  --token <code>                    Bind to existing single-agent
-  --owner-token own_xxx             Owner mode (multi-agent)
-  --agent <name>                    With --owner-token: pick default agent
-  --claude                          Wire Claude only (default)
-  --codex                           Wire Codex only
-  --client both                     Wire both
-  --local                           Config in <cwd>/.inbetween/, not global
-  --global                          Force global (default unless --local)
-  --force                           Overwrite existing without prompt
-  --non-interactive                 Fail if interactive input needed
+${C.bold}install flags${C.reset}
+  --claude            Wire only Claude (default if interactive prompt skipped)
+  --codex             Wire only Codex
+  --both              Wire both
+  --local             Project-scoped: <cwd>/.mcp.json + <cwd>/.inbetween/codex/
+  --global            Global: ~/.claude.json + ~/.codex/config.toml (default)
+  --non-interactive   Don't prompt; pick --claude if no client flag given
 
-${C.bold}run flags (claude / codex)${C.reset}
-  --agent <name>                    Owner-mode: switch active agent for this run
-  --dry-run                         Print spawn command, do not run
-  --no-defaults                     Do not add our --dangerously-* flags
-  --config <path>                   Override config path
-  --                                Pass everything after to the IDE verbatim
+${C.bold}login flags${C.reset}
+  --token <own_xxx>   Skip the interactive paste prompt
+  --non-interactive   Fail if --token missing
 
-${C.bold}logout flags${C.reset}
-  --all                             Remove both local and global configs
-  --keep-mcp                        Leave MCP entries (for re-init later)
+${C.bold}claude/codex flags${C.reset}
+  --dry-run           Print spawn command, don't run
+  --no-defaults       Skip the default --dangerously-* flags
+  --                  Anything after is forwarded verbatim to the IDE
 
 ${C.bold}EXAMPLES${C.reset}
-  inbetweenai init
-  inbetweenai init --token CP5G... --client both
-  inbetweenai init --owner-token own_abc --local
-  inbetweenai
-  inbetweenai claude --resume my-session
-  inbetweenai codex
-  inbetweenai claude --agent bot2
-  inbetweenai logout
+  npm install -g @inbetweenai/cli
+  inbetweenai install --both
+  inbetweenai login                # paste own_xxx from inbetween.chat
+  inbetweenai claude               # opens Claude with InBetween wired
+                                   # → paste a chat onboarding prompt inside
+  inbetweenai uninstall            # nuclear cleanup
 `);
 }
 
-function parseFlags(args: string[]): {
+interface ParsedFlags {
   flags: Record<string, string | boolean>;
   positional: string[];
   passthrough: string[];
-} {
+}
+
+function parseFlags(args: string[]): ParsedFlags {
   const flags: Record<string, string | boolean> = {};
   const positional: string[] = [];
   const passthrough: string[] = [];
@@ -105,72 +105,45 @@ function parseFlags(args: string[]): {
 }
 
 /**
- * For run subcommands, separate our consumed flags from pass-through.
- * Our flags: --agent, --dry-run, --no-defaults, --config, --version, --help
+ * For the run subcommands (claude/codex), only --dry-run and --no-defaults
+ * are consumed. Everything else is forwarded as pass-through args to the
+ * underlying IDE.
  */
 function parseRunArgs(rawArgs: string[]): {
-  ours: Record<string, string | boolean>;
+  dryRun: boolean;
+  noDefaults: boolean;
   passthroughArgs: string[];
 } {
-  const OURS = new Set([
-    "--agent",
-    "--dry-run",
-    "--no-defaults",
-    "--config",
-    "--version",
-    "--help",
-  ]);
-  const ours: Record<string, string | boolean> = {};
+  const OURS = new Set(["--dry-run", "--no-defaults"]);
+  let dryRun = false;
+  let noDefaults = false;
   const passthroughArgs: string[] = [];
-  let i = 0;
   let inPass = false;
-  while (i < rawArgs.length) {
+  for (let i = 0; i < rawArgs.length; i++) {
     const a = rawArgs[i];
     if (inPass) {
       passthroughArgs.push(a);
-      i++;
       continue;
     }
     if (a === "--") {
       inPass = true;
-      i++;
       continue;
     }
     if (OURS.has(a)) {
-      const next = rawArgs[i + 1];
-      const takesValue = a === "--agent" || a === "--config";
-      if (takesValue && next !== undefined && !next.startsWith("--")) {
-        ours[a.slice(2)] = next;
-        i += 2;
-      } else {
-        ours[a.slice(2)] = true;
-        i += 1;
-      }
-    } else {
-      // Not ours — pass through.
-      passthroughArgs.push(a);
-      i++;
+      if (a === "--dry-run") dryRun = true;
+      if (a === "--no-defaults") noDefaults = true;
+      continue;
     }
+    passthroughArgs.push(a);
   }
-  return { ours, passthroughArgs };
+  return { dryRun, noDefaults, passthroughArgs };
 }
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
 
   if (argv.length === 0) {
-    // No args: run default IDE.
-    const loaded = loadConfig();
-    if (!loaded) {
-      err("No InBetween config found.");
-      info("Run: inbetweenai init");
-      process.exit(1);
-    }
-    const ide = loaded.config.default_ide || "claude";
-    await run({
-      ide,
-      passthroughArgs: [],
-    });
+    printHelp();
     return;
   }
 
@@ -185,60 +158,52 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (sub === "init") {
+  if (sub === "install") {
     const { flags } = parseFlags(argv.slice(1));
-    const opts: InitOptions = {
-      token: typeof flags.token === "string" ? flags.token : undefined,
-      ownerToken:
-        typeof flags["owner-token"] === "string"
-          ? (flags["owner-token"] as string)
-          : undefined,
-      agent: typeof flags.agent === "string" ? flags.agent : undefined,
-      client:
-        flags.claude
-          ? "claude"
-          : flags.codex
-            ? "codex"
-            : flags.client === "both"
-              ? "both"
-              : flags.client === "claude"
-                ? "claude"
-                : flags.client === "codex"
-                  ? "codex"
-                  : undefined,
+    const opts: InstallOptions = {
+      client: flags.both
+        ? "both"
+        : flags.codex
+          ? "codex"
+          : flags.claude
+            ? "claude"
+            : undefined,
       local: !!flags.local,
-      global: !!flags.global,
       force: !!flags.force,
       nonInteractive: !!flags["non-interactive"],
     };
-    await runInit(opts);
+    await runInstall(opts);
     return;
   }
 
-  if (sub === "claude" || sub === "codex") {
-    const { ours, passthroughArgs } = parseRunArgs(argv.slice(1));
-    await run({
-      ide: sub,
-      agent: typeof ours.agent === "string" ? ours.agent : undefined,
-      dryRun: !!ours["dry-run"],
-      noDefaults: !!ours["no-defaults"],
-      configPath: typeof ours.config === "string" ? ours.config : undefined,
-      passthroughArgs,
+  if (sub === "uninstall") {
+    const { flags } = parseFlags(argv.slice(1));
+    runUninstall({ local: !!flags.local });
+    return;
+  }
+
+  if (sub === "login") {
+    const { flags } = parseFlags(argv.slice(1));
+    await runLogin({
+      token: typeof flags.token === "string" ? flags.token : undefined,
+      nonInteractive: !!flags["non-interactive"],
     });
     return;
   }
 
   if (sub === "logout") {
-    const { flags } = parseFlags(argv.slice(1));
-    runLogout({
-      all: !!flags.all,
-      keepMcp: !!flags["keep-mcp"],
-    });
+    runLogout();
     return;
   }
 
-  if (sub === "uninstall") {
-    runUninstall();
+  if (sub === "claude" || sub === "codex") {
+    const { dryRun, noDefaults, passthroughArgs } = parseRunArgs(argv.slice(1));
+    await run({
+      ide: sub,
+      dryRun,
+      noDefaults,
+      passthroughArgs,
+    });
     return;
   }
 
