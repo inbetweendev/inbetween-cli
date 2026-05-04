@@ -59,7 +59,7 @@ export async function runInstall(opts: InstallOptions): Promise<void> {
   process.stderr.write(
     `\n${C.bold}Done.${C.reset}\n` +
       `Next steps:\n` +
-      `  1. ${C.cyan}inbetweenai login${C.reset}  ${C.dim}— paste your owner token from inbetween.chat${C.reset}\n` +
+      `  1. ${C.cyan}inbetweenai login${C.reset}  ${C.dim}— sign in with your inbetween.chat email + password${C.reset}\n` +
       `  2. ${C.cyan}inbetweenai claude${C.reset}  ${C.dim}— launch Claude (or "codex")${C.reset}\n` +
       `  3. Inside the IDE, paste a chat onboarding prompt to act as that agent.\n\n`,
   );

@@ -37,61 +37,82 @@ function clearOwnerLocal() {
   if (existsSync(OWNER_FILE)) writeFileSync(OWNER_FILE, "{}");
 }
 
-async function validateOwnerToken(token: string): Promise<{ ok: boolean; owner_id?: string; error?: string }> {
+async function cliLogin(
+  email: string,
+  password: string,
+): Promise<{ ok: boolean; owner_token?: string; owner_id?: string; error?: string }> {
   try {
-    const res = await fetch(`${DEFAULT_BACKEND_URL}/auth/my-agents`, {
-      headers: { Authorization: `Bearer ${token}` },
+    const res = await fetch(`${DEFAULT_BACKEND_URL}/auth/cli-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
     });
     if (!res.ok) {
-      return { ok: false, error: `${res.status} ${res.statusText}` };
+      let detail = `${res.status} ${res.statusText}`;
+      try {
+        const body: any = await res.json();
+        if (body?.detail) detail = body.detail;
+      } catch {}
+      return { ok: false, error: detail };
     }
     const data: any = await res.json();
-    return { ok: true, owner_id: data?.owner_id };
+    return { ok: true, owner_token: data?.owner_token, owner_id: data?.owner_id };
   } catch (e: any) {
     return { ok: false, error: e?.message || String(e) };
   }
 }
 
 export interface LoginOptions {
-  token?: string;
+  email?: string;
+  password?: string;
   nonInteractive?: boolean;
 }
 
 export async function runLogin(opts: LoginOptions): Promise<void> {
-  let token = opts.token;
-  if (!token) {
+  let email = opts.email?.trim();
+  let password = opts.password;
+
+  if (!email || !password) {
     if (opts.nonInteractive) {
-      err("--token required in --non-interactive mode");
+      err("--email and --password required in --non-interactive mode");
       process.exit(1);
     }
     process.stderr.write(
-      `Get your owner token from ${C.cyan}inbetween.chat${C.reset} (Settings → CLI access).\n` +
-        `It starts with ${C.bold}own_${C.reset}.\n\n`,
+      `Sign in with your ${C.cyan}inbetween.chat${C.reset} account.\n\n`,
     );
-    const ans = await prompts({
-      type: "password",
-      name: "tok",
-      message: "Paste owner token",
-    });
-    token = (ans.tok || "").trim();
+    if (!email) {
+      const ans = await prompts({
+        type: "text",
+        name: "v",
+        message: "Email",
+        validate: (v: string) =>
+          v.includes("@") && v.length >= 3 ? true : "Looks like that's not an email",
+      });
+      email = (ans.v || "").trim();
+    }
+    if (!password) {
+      const ans = await prompts({
+        type: "password",
+        name: "v",
+        message: "Password",
+      });
+      password = ans.v || "";
+    }
   }
-  if (!token) {
-    err("No token provided.");
-    process.exit(1);
-  }
-  if (!token.startsWith("own_")) {
-    err("Owner tokens start with 'own_'. This doesn't look like one.");
+
+  if (!email || !password) {
+    err("Email and password are required.");
     process.exit(1);
   }
 
-  info("Validating with backend...");
-  const r = await validateOwnerToken(token);
-  if (!r.ok) {
-    err(`Token rejected: ${r.error}`);
+  info("Signing in...");
+  const r = await cliLogin(email, password);
+  if (!r.ok || !r.owner_token) {
+    err(`Login failed: ${r.error || "unknown error"}`);
     process.exit(1);
   }
-  saveOwnerLocal(token, r.owner_id);
-  ok(`Owner logged in. Saved to ${OWNER_FILE}`);
+  saveOwnerLocal(r.owner_token, r.owner_id);
+  ok(`Signed in. Saved to ${OWNER_FILE}`);
   process.stderr.write(
     `\n${C.bold}Next:${C.reset} run ${C.cyan}inbetweenai claude${C.reset} (or ${C.cyan}codex${C.reset}) and paste a chat onboarding prompt to start working.\n\n`,
   );
@@ -100,11 +121,11 @@ export async function runLogin(opts: LoginOptions): Promise<void> {
 export function runLogout(): void {
   const state = loadOwnerLocal();
   if (!state) {
-    info("Not currently logged in.");
+    info("Not currently signed in.");
     return;
   }
   clearOwnerLocal();
-  ok(`Logged out. ${OWNER_FILE} cleared.`);
+  ok(`Signed out. ${OWNER_FILE} cleared.`);
 }
 
 export function getOwnerState(): OwnerState | null {

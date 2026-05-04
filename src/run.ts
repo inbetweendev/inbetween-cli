@@ -33,9 +33,9 @@ function printBootBanner(ide: "claude" | "codex") {
     lines.push(`  ${C.green}●${C.reset} owner authenticated`);
   } else {
     lines.push(
-      `  ${C.dim}You're not logged in as an owner yet.${C.reset}`,
-      `  ${C.dim}Inside ${ideLabel}, paste your owner token via owner_login(\"own_...\").${C.reset}`,
-      `  ${C.dim}Or run \`inbetweenai login\` and skip the paste.${C.reset}`,
+      `  ${C.dim}You're not signed in yet.${C.reset}`,
+      `  ${C.dim}Inside ${ideLabel}, call owner_login(email, password) with your inbetween.chat account.${C.reset}`,
+      `  ${C.dim}Or run \`inbetweenai login\` and skip that step.${C.reset}`,
     );
   }
   lines.push(

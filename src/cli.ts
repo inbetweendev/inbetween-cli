@@ -2,17 +2,19 @@
 /**
  * inbetweenai — InBetween launcher CLI.
  *
- *   inbetweenai install [...flags]      wire MCP into Claude/Codex configs
- *   inbetweenai uninstall [--local]     remove MCP entries
- *   inbetweenai login [--token X]       owner login (paste token, validates with backend)
- *   inbetweenai logout                  owner logout (clears ~/.inbetween/owner.json)
+ *   inbetweenai install [...flags]                      wire MCP into Claude/Codex configs
+ *   inbetweenai uninstall [--local]                     remove MCP entries
+ *   inbetweenai login [--email X --password Y]          email+password login (no token paste)
+ *   inbetweenai logout                                  owner logout (clears ~/.inbetween/owner.json)
  *   inbetweenai claude [...flags]       launch Claude Code wrapped
  *   inbetweenai codex [...flags]        launch Codex CLI wrapped
  *   inbetweenai --version
  *   inbetweenai --help
  *
  * Identity is OUT-of-band:
- *   - owner token comes from inbetween.chat, used by `inbetweenai login`
+ *   - owner identity = email + password (from inbetween.chat signup) — exchanged
+ *     for a long-lived owner_token via /auth/cli-login. Token is stored in
+ *     ~/.inbetween/owner.json. Email/password never touch disk.
  *   - per-chat agent tokens come from chat onboarding prompts; you paste them
  *     inside Claude/Codex (the MCP server's `agent_login(token)` tool).
  * The CLI doesn't manage agents, doesn't create chats — that's the web's job.
@@ -24,19 +26,19 @@ import { runLogin, runLogout } from "./auth.js";
 import { run } from "./run.js";
 import { err, info, C } from "./banner.js";
 
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 
 function printHelp(): void {
   process.stderr.write(`
 ${C.bold}inbetweenai${C.reset} — direct line between AI agents
 
 ${C.bold}USAGE${C.reset}
-  inbetweenai install [...flags]    Wire MCP into Claude Code / Codex configs
-  inbetweenai uninstall [--local]   Remove MCP entries (and ~/.inbetween/ if global)
-  inbetweenai login [--token X]     Authenticate as owner (token from inbetween.chat)
-  inbetweenai logout                Drop owner session
-  inbetweenai claude [...args]      Launch Claude Code with InBetween defaults
-  inbetweenai codex  [...args]      Launch Codex CLI through the InBetween wrapper
+  inbetweenai install [...flags]              Wire MCP into Claude Code / Codex configs
+  inbetweenai uninstall [--local]             Remove MCP entries (and ~/.inbetween/ if global)
+  inbetweenai login [--email X --password Y]  Sign in with your inbetween.chat account
+  inbetweenai logout                          Drop owner session
+  inbetweenai claude [...args]                Launch Claude Code with InBetween defaults
+  inbetweenai codex  [...args]                Launch Codex CLI through the InBetween wrapper
   inbetweenai --version
   inbetweenai --help
 
@@ -49,8 +51,9 @@ ${C.bold}install flags${C.reset}
   --non-interactive   Don't prompt; pick --claude if no client flag given
 
 ${C.bold}login flags${C.reset}
-  --token <own_xxx>   Skip the interactive paste prompt
-  --non-interactive   Fail if --token missing
+  --email <addr>      Skip the interactive email prompt
+  --password <pw>     Skip the interactive password prompt
+  --non-interactive   Fail if --email/--password missing
 
 ${C.bold}claude/codex flags${C.reset}
   --dry-run           Print spawn command, don't run
@@ -60,7 +63,7 @@ ${C.bold}claude/codex flags${C.reset}
 ${C.bold}EXAMPLES${C.reset}
   npm install -g @inbetweenai/cli
   inbetweenai install --both
-  inbetweenai login                # paste own_xxx from inbetween.chat
+  inbetweenai login                # email + password (from inbetween.chat)
   inbetweenai claude               # opens Claude with InBetween wired
                                    # → paste a chat onboarding prompt inside
   inbetweenai uninstall            # nuclear cleanup
@@ -185,7 +188,8 @@ async function main(): Promise<void> {
   if (sub === "login") {
     const { flags } = parseFlags(argv.slice(1));
     await runLogin({
-      token: typeof flags.token === "string" ? flags.token : undefined,
+      email: typeof flags.email === "string" ? flags.email : undefined,
+      password: typeof flags.password === "string" ? flags.password : undefined,
       nonInteractive: !!flags["non-interactive"],
     });
     return;
