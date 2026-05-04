@@ -24,6 +24,8 @@ import { runInstall, type InstallOptions } from "./install.js";
 import { runUninstall } from "./cleanup.js";
 import { runLogin, runLogout } from "./auth.js";
 import { run } from "./run.js";
+import { runStatus } from "./status.js";
+import { runDoctor } from "./doctor.js";
 import { err, info, C } from "./banner.js";
 
 const VERSION = "0.2.3";
@@ -36,7 +38,9 @@ ${C.bold}USAGE${C.reset}
   inbetweenai install [--local]               Wire MCP into both Claude Code AND Codex configs
   inbetweenai uninstall [--local]             Remove MCP entries (and ~/.inbetween/ if global)
   inbetweenai login [--email X --password Y]  Sign in with your inbetween.chat account
-  inbetweenai logout                          Drop owner session
+  inbetweenai logout                          Server-side revoke + clear local owner.json
+  inbetweenai status                          One-liner: signed in? clients wired? versions
+  inbetweenai doctor                          Diagnose claude/codex install, MCP entry, backend
   inbetweenai claude [...args]                Launch Claude Code with InBetween defaults
   inbetweenai codex  [...args]                Launch Codex CLI through the InBetween wrapper
   inbetweenai --version
@@ -182,6 +186,16 @@ async function main(): Promise<void> {
 
   if (sub === "logout") {
     await runLogout();
+    return;
+  }
+
+  if (sub === "status") {
+    runStatus();
+    return;
+  }
+
+  if (sub === "doctor") {
+    await runDoctor();
     return;
   }
 
