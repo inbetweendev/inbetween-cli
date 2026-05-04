@@ -26,6 +26,7 @@ import { runLogin, runLogout } from "./auth.js";
 import { run } from "./run.js";
 import { runStatus } from "./status.js";
 import { runDoctor } from "./doctor.js";
+import { maybeNotifyUpdate } from "./update-check.js";
 import { err, info, C } from "./banner.js";
 
 const VERSION = "0.2.3";
@@ -160,6 +161,13 @@ async function main(): Promise<void> {
   if (sub === "--help" || sub === "-h" || sub === "help") {
     printHelp();
     return;
+  }
+
+  // Best-effort update notice. Cached 24h, capped at 1.5s, opt-out via
+  // INBETWEEN_NO_UPDATE_CHECK=1. Skip for status/doctor — those already
+  // print versions and should be fast.
+  if (sub !== "status" && sub !== "doctor") {
+    await maybeNotifyUpdate();
   }
 
   if (sub === "install") {
