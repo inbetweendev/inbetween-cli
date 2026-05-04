@@ -26,7 +26,7 @@ import { runLogin, runLogout } from "./auth.js";
 import { run } from "./run.js";
 import { err, info, C } from "./banner.js";
 
-const VERSION = "0.2.2";
+const VERSION = "0.2.3";
 
 function printHelp(): void {
   process.stderr.write(`
