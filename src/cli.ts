@@ -2,7 +2,7 @@
 /**
  * inbetweenai — InBetween launcher CLI.
  *
- *   inbetweenai install [...flags]                      wire MCP into Claude/Codex configs
+ *   inbetweenai install [--local]                       wire MCP into both Claude/Codex configs
  *   inbetweenai uninstall [--local]                     remove MCP entries
  *   inbetweenai login [--email X --password Y]          email+password login (no token paste)
  *   inbetweenai logout                                  owner logout (clears ~/.inbetween/owner.json)
@@ -26,14 +26,14 @@ import { runLogin, runLogout } from "./auth.js";
 import { run } from "./run.js";
 import { err, info, C } from "./banner.js";
 
-const VERSION = "0.2.1";
+const VERSION = "0.2.2";
 
 function printHelp(): void {
   process.stderr.write(`
 ${C.bold}inbetweenai${C.reset} — direct line between AI agents
 
 ${C.bold}USAGE${C.reset}
-  inbetweenai install [...flags]              Wire MCP into Claude Code / Codex configs
+  inbetweenai install [--local]               Wire MCP into both Claude Code AND Codex configs
   inbetweenai uninstall [--local]             Remove MCP entries (and ~/.inbetween/ if global)
   inbetweenai login [--email X --password Y]  Sign in with your inbetween.chat account
   inbetweenai logout                          Drop owner session
@@ -43,12 +43,9 @@ ${C.bold}USAGE${C.reset}
   inbetweenai --help
 
 ${C.bold}install flags${C.reset}
-  --claude            Wire only Claude (default if interactive prompt skipped)
-  --codex             Wire only Codex
-  --both              Wire both
   --local             Project-scoped: <cwd>/.mcp.json + <cwd>/.inbetween/codex/
-  --global            Global: ~/.claude.json + ~/.codex/config.toml (default)
-  --non-interactive   Don't prompt; pick --claude if no client flag given
+  (default)           Global: ~/.claude.json + ~/.codex/config.toml
+                      Always wires both Claude and Codex.
 
 ${C.bold}login flags${C.reset}
   --email <addr>      Skip the interactive email prompt
@@ -62,7 +59,7 @@ ${C.bold}claude/codex flags${C.reset}
 
 ${C.bold}EXAMPLES${C.reset}
   npm install -g @inbetweenai/cli
-  inbetweenai install --both
+  inbetweenai install              # wires Claude + Codex globally
   inbetweenai login                # email + password (from inbetween.chat)
   inbetweenai claude               # opens Claude with InBetween wired
                                    # → paste a chat onboarding prompt inside
@@ -163,19 +160,7 @@ async function main(): Promise<void> {
 
   if (sub === "install") {
     const { flags } = parseFlags(argv.slice(1));
-    const opts: InstallOptions = {
-      client: flags.both
-        ? "both"
-        : flags.codex
-          ? "codex"
-          : flags.claude
-            ? "claude"
-            : undefined,
-      local: !!flags.local,
-      force: !!flags.force,
-      nonInteractive: !!flags["non-interactive"],
-    };
-    await runInstall(opts);
+    await runInstall({ local: !!flags.local });
     return;
   }
 
