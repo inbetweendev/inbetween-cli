@@ -124,11 +124,31 @@ export async function runLogin(opts: LoginOptions): Promise<void> {
   );
 }
 
-export function runLogout(): void {
+async function revokeOwnerTokenServerSide(token: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${DEFAULT_BACKEND_URL}/auth/cli-logout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { ok: false, error: `${res.status} ${res.statusText}` };
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+}
+
+export async function runLogout(): Promise<void> {
   const state = loadOwnerLocal();
   if (!state) {
     info("Not currently signed in.");
     return;
+  }
+  // Best-effort server-side revoke first. If it fails (offline, backend down,
+  // token already revoked), still wipe the local file — user explicitly
+  // asked to log out, never strand them with a half-state.
+  const r = await revokeOwnerTokenServerSide(state.owner_token);
+  if (!r.ok) {
+    info(`Server revoke skipped (${r.error}); clearing local file anyway.`);
   }
   clearOwnerLocal();
   ok(`Signed out. ${OWNER_FILE} cleared.`);

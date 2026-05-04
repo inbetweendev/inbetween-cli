@@ -181,7 +181,7 @@ async function main(): Promise<void> {
   }
 
   if (sub === "logout") {
-    runLogout();
+    await runLogout();
     return;
   }
 
