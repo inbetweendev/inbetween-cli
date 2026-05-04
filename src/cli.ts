@@ -29,7 +29,7 @@ import { runDoctor } from "./doctor.js";
 import { maybeNotifyUpdate } from "./update-check.js";
 import { err, info, C } from "./banner.js";
 
-const VERSION = "0.2.3";
+const VERSION = "0.3.0";
 
 function printHelp(): void {
   process.stderr.write(`
