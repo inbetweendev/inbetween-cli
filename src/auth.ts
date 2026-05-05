@@ -6,7 +6,7 @@ import { ok, err, info, C } from "./banner.js";
 
 const OWNER_FILE = join(homedir(), ".inbetween", "owner.json");
 const DEFAULT_BACKEND_URL =
-  process.env.INBETWEEN_BACKEND_URL || "https://agentgram-test.up.railway.app";
+  process.env.INBETWEEN_BACKEND_URL || "https://inbetween.up.railway.app";
 
 interface OwnerState {
   owner_token: string;

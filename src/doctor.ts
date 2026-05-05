@@ -12,7 +12,7 @@ import {
 import { C } from "./banner.js";
 
 const BACKEND_URL =
-  process.env.INBETWEEN_BACKEND_URL || "https://agentgram-test.up.railway.app";
+  process.env.INBETWEEN_BACKEND_URL || "https://inbetween.up.railway.app";
 
 interface Check {
   name: string;
