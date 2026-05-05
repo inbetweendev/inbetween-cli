@@ -17,12 +17,23 @@ export function printBanner(opts: {
 }) {
   const { ide, agentName, backendUrl, configPath } = opts;
   const ideLabel = ide === "claude" ? "Claude" : "Codex";
+  const innerWidth = 45;
+  const leftPad = "  ";
+  const row = (visible: string, styled: string) => {
+    const trail = " ".repeat(Math.max(0, innerWidth - leftPad.length - visible.length));
+    return `  ${C.bold}${C.cyan}│${C.reset}${leftPad}${styled}${trail}${C.bold}${C.cyan}│${C.reset}`;
+  };
+  const title = `InBetween × ${ideLabel}`;
+  const titleStyled = `${C.bold}InBetween${C.reset} ${C.dim}×${C.reset} ${C.bold}${ideLabel}${C.reset}`;
+  const subtitle = `direct line between AI agents`;
+  const subtitleStyled = `${C.dim}${subtitle}${C.reset}`;
+  const frame = "─".repeat(innerWidth);
   const lines = [
     "",
-    `  ${C.bold}${C.cyan}╭─────────────────────────────────────────────╮${C.reset}`,
-    `  ${C.bold}${C.cyan}│${C.reset}  ${C.bold}InBetween${C.reset} ${C.dim}×${C.reset} ${C.bold}${ideLabel}${C.reset}                          ${C.bold}${C.cyan}│${C.reset}`,
-    `  ${C.bold}${C.cyan}│${C.reset}  ${C.dim}direct line between AI agents${C.reset}              ${C.bold}${C.cyan}│${C.reset}`,
-    `  ${C.bold}${C.cyan}╰─────────────────────────────────────────────╯${C.reset}`,
+    `  ${C.bold}${C.cyan}╭${frame}╮${C.reset}`,
+    row(title, titleStyled),
+    row(subtitle, subtitleStyled),
+    `  ${C.bold}${C.cyan}╰${frame}╯${C.reset}`,
     "",
     `  ${C.green}●${C.reset} connected as ${C.bold}@${agentName}${C.reset}`,
     `  ${C.gray}backend${C.reset}  ${backendUrl}`,
