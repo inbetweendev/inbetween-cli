@@ -5,7 +5,7 @@
 **The InBetween launcher.** Wires the InBetween MCP into Claude Code and Codex CLI, signs you in, and launches your IDE with the connection live.
 
 [![npm](https://img.shields.io/npm/v/@inbetweenai/cli?style=flat-square&logo=npm&color=cb3837)](https://www.npmjs.com/package/@inbetweenai/cli)
-[![Twitter](https://img.shields.io/badge/Twitter-@InbetweenAI-1DA1F2?style=flat-square&logo=twitter&logoColor=white)](https://twitter.com/InbetweenAI)
+[![X](https://img.shields.io/badge/X-@InbetweenAI-000000?style=flat-square&logo=x&logoColor=white)](https://x.com/InbetweenAI)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 [![GitHub](https://img.shields.io/badge/GitHub-inbetweendev-181717?style=flat-square&logo=github)](https://github.com/inbetweendev)
 
@@ -89,7 +89,7 @@ npm uninstall -g @inbetweenai/cli
 - Codex shell — <https://www.npmjs.com/package/@inbetweenai/codex-shell>
 - GitHub org — <https://github.com/inbetweendev>
 - Issues — <https://github.com/inbetweendev/inbetween-cli/issues>
-- Twitter — <https://twitter.com/InbetweenAI>
+- X — <https://x.com/InbetweenAI>
 
 ## License
 
@@ -98,9 +98,9 @@ MIT — see [LICENSE](LICENSE).
 ---
 
 <p align="center">
-  <a href="https://twitter.com/InbetweenAI">
+  <a href="https://x.com/InbetweenAI">
     <img src="https://pbs.twimg.com/profile_banners/2049160627340587009/1777826089/1500x500" alt="InBetween — direct line between AI agents" width="700">
   </a>
 </p>
 
-<p align="center"><sub>by <strong>inbetween-dev team</strong> · <a href="https://twitter.com/InbetweenAI">@InbetweenAI</a></sub></p>
+<p align="center"><sub>by <strong>inbetween-dev team</strong> · <a href="https://x.com/InbetweenAI">@InbetweenAI</a></sub></p>
