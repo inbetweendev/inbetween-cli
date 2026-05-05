@@ -8,6 +8,9 @@ import {
   codexLocalConfigPath,
 } from "./paths.js";
 import { C } from "./banner.js";
+import { findCwdAgent } from "./sessions.js";
+import { checkDrift, semverGt } from "./update-check.js";
+import { fetchMyAgents } from "./backend.js";
 
 function claudeMcpWired(path: string): boolean {
   try {
@@ -29,16 +32,42 @@ function codexMcpWired(path: string): boolean {
   }
 }
 
-function dep(name: string): string {
+function depVersion(pkg: string): string {
   try {
     const r = createRequire(import.meta.url);
-    return r(`${name}/package.json`).version;
+    return r(`${pkg}/package.json`).version;
   } catch {
     return "(missing)";
   }
 }
 
-export function runStatus(): void {
+function cliVersion(): string {
+  try {
+    const r = createRequire(import.meta.url);
+    return r("../package.json").version;
+  } catch {
+    return "(unknown)";
+  }
+}
+
+function fmtDrift(current: string, latest: string | null, viaNpx = false): string {
+  // Special case for npx-only packages (e.g. @inbetweenai/mcp, fetched on
+  // demand by Claude / Codex via their MCP config). cli doesn't import them
+  // as a hard dep, so the "current" lookup returns "(missing)". Fall back
+  // to showing only the published version with a note.
+  if (current === "(missing)") {
+    return latest
+      ? `${latest} ${C.dim}(via npx)${C.reset}`
+      : `${C.dim}(via npx, version unknown)${C.reset}`;
+  }
+  if (!latest) return current;
+  if (semverGt(latest, current)) {
+    return `${current} ${C.dim}(latest ${latest})${C.reset}`;
+  }
+  return `${current} ${C.dim}(latest)${C.reset}`;
+}
+
+export async function runStatus(): Promise<void> {
   const owner = getOwnerState();
 
   const claudeGlobal = claudeUserConfigPath();
@@ -49,27 +78,70 @@ export function runStatus(): void {
   const claudeOk = claudeMcpWired(claudeGlobal) || claudeMcpWired(claudeLocal);
   const codexOk = codexMcpWired(codexGlobal) || codexMcpWired(codexLocal);
 
-  const cliVersion = (() => {
-    try {
-      const r = createRequire(import.meta.url);
-      return r("../package.json").version;
-    } catch {
-      return "(unknown)";
-    }
-  })();
+  const cwdAgent = findCwdAgent();
+
+  const cliVer = cliVersion();
+  const mcpVer = depVersion("@inbetweenai/mcp");
+  const codexShellVer = depVersion("@inbetweenai/codex-shell");
+
+  // Best-effort online checks. Each is bounded by its own timeout, so worst
+  // case `status` takes ~3s. Failures fall back to offline display.
+  const driftPromises = Promise.all([
+    checkDrift("@inbetweenai/cli", cliVer).catch(() => null),
+    checkDrift("@inbetweenai/mcp", mcpVer).catch(() => null),
+    checkDrift("@inbetweenai/codex-shell", codexShellVer).catch(() => null),
+  ]);
+  const agentsPromise = owner?.owner_token
+    ? fetchMyAgents(owner.owner_token).catch(() => null)
+    : Promise.resolve(null);
+
+  const [drifts, agents] = await Promise.all([driftPromises, agentsPromise]);
+  const [cliDrift, mcpDrift, codexShellDrift] = drifts;
 
   const dot = (ok: boolean) => (ok ? `${C.green}●${C.reset}` : `${C.dim}○${C.reset}`);
+  const warn = `${C.yellow}⚠${C.reset}`;
 
-  process.stderr.write([
+  const ownerLabel = (() => {
+    if (!owner) return "not signed in — run `inbetweenai login`";
+    let line = `signed in as ${C.bold}${owner.owner_id ?? "(id unknown)"}${C.reset}`;
+    if (agents?.ok) {
+      line += `  ${C.dim}— ${agents.total} agents (${agents.online} online)${C.reset}`;
+    } else if (agents?.status === 401) {
+      line += `  ${warn} ${C.yellow}token rejected — run \`inbetweenai login\`${C.reset}`;
+    }
+    return line;
+  })();
+
+  const cwdLabel = cwdAgent
+    ? `${C.bold}${cwdAgent.display_name || cwdAgent.agent_name || "agent"}${C.reset}` +
+      (cwdAgent.chat_id !== undefined ? ` ${C.dim}(chat ${cwdAgent.chat_id})${C.reset}` : "") +
+      (cwdAgent.variant !== "default" ? ` ${C.dim}[${cwdAgent.variant}]${C.reset}` : "")
+    : `${C.dim}no agent linked — paste an onboarding prompt in Claude${C.reset}`;
+
+  const lines = [
     "",
     `  ${C.bold}InBetween status${C.reset}`,
     "",
-    `  ${dot(!!owner)} owner       ${owner ? `signed in (${owner.owner_id ?? "id unknown"})` : `not signed in — run \`inbetweenai login\``}`,
+    `  ${dot(!!owner)} owner       ${ownerLabel}`,
     `  ${dot(claudeOk)} claude mcp  ${claudeOk ? "wired" : "not wired — run `inbetweenai install`"}`,
     `  ${dot(codexOk)} codex mcp   ${codexOk ? "wired" : "not wired — run `inbetweenai install`"}`,
+    `  ${dot(!!cwdAgent)} this dir    ${cwdLabel}`,
     "",
-    `  ${C.dim}cli${C.reset}         ${cliVersion}`,
-    `  ${C.dim}codex-shell${C.reset} ${dep("@inbetweenai/codex-shell")}`,
+    `  ${C.dim}cli${C.reset}         ${fmtDrift(cliVer, cliDrift?.latest ?? null)}`,
+    `  ${C.dim}mcp${C.reset}         ${fmtDrift(mcpVer, mcpDrift?.latest ?? null, true)}`,
+    `  ${C.dim}codex-shell${C.reset} ${fmtDrift(codexShellVer, codexShellDrift?.latest ?? null)}`,
     "",
-  ].join("\n") + "\n");
+  ];
+
+  // Append drift hint if anything is outdated.
+  const outdated = [cliDrift, mcpDrift, codexShellDrift].filter((d) => d?.outdated);
+  if (outdated.length > 0) {
+    lines.push(
+      `  ${warn} update available — ${C.cyan}npm install -g @inbetweenai/cli@latest${C.reset}`,
+      `    ${C.dim}then ${C.cyan}npm cache clean --force${C.dim} so npx-cached MCP/codex-shell refresh too${C.reset}`,
+      "",
+    );
+  }
+
+  process.stderr.write(lines.join("\n") + "\n");
 }

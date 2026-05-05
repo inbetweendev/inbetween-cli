@@ -10,6 +10,8 @@ import {
   IS_WIN,
 } from "./paths.js";
 import { C } from "./banner.js";
+import { checkDrift, semverGt } from "./update-check.js";
+import { fetchMyAgents } from "./backend.js";
 
 const BACKEND_URL =
   process.env.INBETWEEN_BACKEND_URL || "https://inbetween.up.railway.app";
@@ -117,7 +119,7 @@ export async function runDoctor(): Promise<void> {
     hint: codexWired ? undefined : "inbetweenai install",
   });
 
-  // Owner signed in
+  // Owner signed in (file present)
   const owner = getOwnerState();
   checks.push({
     name: "owner signed in",
@@ -137,14 +139,84 @@ export async function runDoctor(): Promise<void> {
     hint: be.ok ? undefined : "check INBETWEEN_BACKEND_URL or your network",
   });
 
-  // CLI / dep versions
+  // Owner token validity (only if owner is present + backend reachable)
+  if (owner && be.ok) {
+    const my = await fetchMyAgents(owner.owner_token);
+    checks.push({
+      name: "owner token valid",
+      ok: my.ok,
+      detail: my.ok
+        ? `${my.total} agents, ${my.online} online`
+        : my.error || "rejected",
+      hint: my.ok
+        ? undefined
+        : my.status === 401
+        ? "token revoked / expired — re-run `inbetweenai login`"
+        : "transient backend error — retry shortly",
+    });
+  }
+
+  // Version drift
   const r = createRequire(import.meta.url);
   const cliVer = (() => {
-    try { return r("../package.json").version; } catch { return "(unknown)"; }
+    try { return r("../package.json").version; } catch { return null; }
+  })();
+  const mcpVer = (() => {
+    try { return r("@inbetweenai/mcp/package.json").version; } catch { return null; }
   })();
   const cxShellVer = (() => {
-    try { return r("@inbetweenai/codex-shell/package.json").version; } catch { return "(missing)"; }
+    try { return r("@inbetweenai/codex-shell/package.json").version; } catch { return null; }
   })();
+
+  const driftPkgs: { pkg: string; current: string | null }[] = [
+    { pkg: "@inbetweenai/cli", current: cliVer },
+    { pkg: "@inbetweenai/mcp", current: mcpVer },
+    { pkg: "@inbetweenai/codex-shell", current: cxShellVer },
+  ];
+  for (const { pkg, current } of driftPkgs) {
+    if (!current) {
+      // mcp is intentionally npx-fetched (no hard dep on cli) — show the
+      // published latest and pass the check. Other packages — flag as missing.
+      if (pkg === "@inbetweenai/mcp") {
+        const latest = await checkDrift(pkg, "0.0.0").catch(() => null);
+        checks.push({
+          name: `${pkg} version`,
+          ok: true,
+          detail: latest
+            ? `${latest.latest} (via npx)`
+            : "(via npx — version unknown)",
+        });
+      } else {
+        checks.push({
+          name: `${pkg} version`,
+          ok: false,
+          detail: "not installed",
+          hint: `npm install -g ${pkg}@latest`,
+        });
+      }
+      continue;
+    }
+    const drift = await checkDrift(pkg, current).catch(() => null);
+    if (!drift) {
+      // Couldn't verify (offline). Don't fail the whole doctor for this.
+      checks.push({
+        name: `${pkg} version`,
+        ok: true,
+        detail: `${current} (couldn't verify against npm)`,
+      });
+      continue;
+    }
+    checks.push({
+      name: `${pkg} version`,
+      ok: !drift.outdated,
+      detail: drift.outdated
+        ? `${current} → ${drift.latest} available`
+        : `${current} (latest)`,
+      hint: drift.outdated
+        ? `npm install -g ${pkg}@latest && npm cache clean --force`
+        : undefined,
+    });
+  }
 
   // Render
   const lines: string[] = ["", `  ${C.bold}InBetween doctor${C.reset}`, ""];
@@ -152,13 +224,11 @@ export async function runDoctor(): Promise<void> {
   for (const c of checks) {
     if (!c.ok) allOk = false;
     const mark = c.ok ? `${C.green}✓${C.reset}` : `${C.dim}✗${C.reset}`;
-    lines.push(`  ${mark} ${c.name.padEnd(22)} ${c.detail}`);
+    lines.push(`  ${mark} ${c.name.padEnd(28)} ${c.detail}`);
     if (c.hint && !c.ok) {
       lines.push(`    ${C.dim}↳ ${c.hint}${C.reset}`);
     }
   }
-  lines.push("");
-  lines.push(`  ${C.dim}cli ${cliVer} · codex-shell ${cxShellVer}${C.reset}`);
   lines.push("");
   if (!allOk) {
     lines.push(`  ${C.dim}Some checks failed — fix the ones with hints above.${C.reset}`);

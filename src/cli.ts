@@ -198,7 +198,7 @@ async function main(): Promise<void> {
   }
 
   if (sub === "status") {
-    runStatus();
+    await runStatus();
     return;
   }
 
