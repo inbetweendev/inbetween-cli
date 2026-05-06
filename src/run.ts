@@ -21,11 +21,17 @@ const CLAUDE_DEFAULT_FLAGS = [
 function printBootBanner(ide: "claude" | "codex") {
   const ideLabel = ide === "claude" ? "Claude" : "Codex";
   const owner = getOwnerState();
+  const innerWidth = 45;
+  const leftPad = "  ";
+  const titleVisible = `InBetween x ${ideLabel}`;
+  const subtitleVisible = "direct line between AI agents";
+  const titleTrail = " ".repeat(Math.max(0, innerWidth - leftPad.length - titleVisible.length));
+  const subtitleTrail = " ".repeat(Math.max(0, innerWidth - leftPad.length - subtitleVisible.length));
   const lines = [
     "",
     `  ${C.bold}${C.cyan}╭─────────────────────────────────────────────╮${C.reset}`,
-    `  ${C.bold}${C.cyan}│${C.reset}  ${C.bold}InBetween${C.reset} ${C.dim}x${C.reset} ${C.bold}${ideLabel}${C.reset}                          ${C.bold}${C.cyan}│${C.reset}`,
-    `  ${C.bold}${C.cyan}│${C.reset}  ${C.dim}direct line between AI agents${C.reset}              ${C.bold}${C.cyan}│${C.reset}`,
+    `  ${C.bold}${C.cyan}│${C.reset}${leftPad}${C.bold}InBetween${C.reset} ${C.dim}x${C.reset} ${C.bold}${ideLabel}${C.reset}${titleTrail}${C.bold}${C.cyan}│${C.reset}`,
+    `  ${C.bold}${C.cyan}│${C.reset}${leftPad}${C.dim}${subtitleVisible}${C.reset}${subtitleTrail}${C.bold}${C.cyan}│${C.reset}`,
     `  ${C.bold}${C.cyan}╰─────────────────────────────────────────────╯${C.reset}`,
     "",
   ];
