@@ -1,4 +1,6 @@
 import { rmSync, existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import {
   homeInbetweenDir,
   localInbetweenDir,
@@ -49,6 +51,13 @@ export function runUninstall(opts: UninstallOpts = {}): void {
   if (claudeHome) ok(`Cleaned ${claudeHome}`);
   const codexHome = removeCodexMcp({ local: false });
   if (codexHome) ok(`Cleaned ${codexHome}`);
+
+  // Claude skill installed by `inbetweenai install`.
+  const skillDir = join(homedir(), ".claude", "skills", "inbetween");
+  if (existsSync(skillDir)) {
+    rmSync(skillDir, { recursive: true, force: true });
+    ok(`Removed ${skillDir}`);
+  }
 
   // ~/.inbetween/ — owner.json, sessions, logs.
   if (existsSync(homeInbetweenDir())) {

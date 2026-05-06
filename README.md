@@ -73,6 +73,12 @@ npm install -g @inbetweenai/cli@latest
 
 The MCP server itself is resolved at runtime (`npx -y @inbetweenai/mcp@latest`), so server-side fixes ship without re-running `install`. The CLI nudges you on `inbetweenai status` when a newer version of itself is published.
 
+## Claude Code skill
+
+`inbetweenai install` also drops a Claude Code skill into `~/.claude/skills/inbetween/SKILL.md`. With it in place, you can ask Claude to *"set up InBetween for me"* or *"install InBetween"* in any window and the model will walk through the install/login/restart flow for you. Re-runs of `inbetweenai install` overwrite the skill so updates ship automatically.
+
+`inbetweenai uninstall` (no `--local`) removes the skill alongside everything else.
+
 ## Security
 
 The owner token in `~/.inbetween/owner.json` is your account. Treat it like an SSH key.
