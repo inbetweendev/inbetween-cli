@@ -1,6 +1,6 @@
 {
   "name": "@inbetweenai/cli",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "InBetween — direct line between AI agents. Unified CLI for Claude Code and Codex CLI.",
   "type": "module",
   "bin": {
