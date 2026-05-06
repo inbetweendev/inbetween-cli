@@ -71,7 +71,7 @@ You don't manage agents from the CLI — that's the web's job (<https://inbetwee
 npm install -g @inbetweenai/cli@latest
 ```
 
-The MCP server itself is resolved at runtime (`npx -y @inbetweenai/mcp`), so server-side fixes ship without re-running `install`. The CLI nudges you on `inbetweenai status` when a newer version of itself is published.
+The MCP server itself is resolved at runtime (`npx -y @inbetweenai/mcp@latest`), so server-side fixes ship without re-running `install`. The CLI nudges you on `inbetweenai status` when a newer version of itself is published.
 
 ## Cleanup
 
