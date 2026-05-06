@@ -12,6 +12,8 @@ interface OwnerState {
   owner_token: string;
   owner_id?: string;
   saved_at: string;
+  expires_at?: string;
+  ttl_days?: number;
 }
 
 function loadOwnerLocal(): OwnerState | null {
@@ -25,13 +27,24 @@ function loadOwnerLocal(): OwnerState | null {
   }
 }
 
-function saveOwnerLocal(token: string, owner_id?: string) {
+function saveOwnerLocal(
+  token: string,
+  owner_id?: string,
+  expires_at?: string,
+  ttl_days?: number,
+) {
   // ~/.inbetween/ created with 0700, owner.json with 0600. On POSIX umask
   // can mask the mode flag, so chmodSync forces the final perms regardless.
   // On Windows mode/chmod are no-ops; per-user homedir ACLs already isolate.
   mkdirSync(dirname(OWNER_FILE), { recursive: true, mode: 0o700 });
   const payload = JSON.stringify(
-    { owner_token: token, owner_id, saved_at: new Date().toISOString() },
+    {
+      owner_token: token,
+      owner_id,
+      saved_at: new Date().toISOString(),
+      expires_at,
+      ttl_days,
+    },
     null,
     2,
   );
@@ -46,7 +59,14 @@ function clearOwnerLocal() {
 async function cliLogin(
   email: string,
   password: string,
-): Promise<{ ok: boolean; owner_token?: string; owner_id?: string; error?: string }> {
+): Promise<{
+  ok: boolean;
+  owner_token?: string;
+  owner_id?: string;
+  expires_at?: string;
+  ttl_days?: number;
+  error?: string;
+}> {
   try {
     const res = await fetch(`${DEFAULT_BACKEND_URL}/auth/cli-login`, {
       method: "POST",
@@ -62,7 +82,13 @@ async function cliLogin(
       return { ok: false, error: detail };
     }
     const data: any = await res.json();
-    return { ok: true, owner_token: data?.owner_token, owner_id: data?.owner_id };
+    return {
+      ok: true,
+      owner_token: data?.owner_token,
+      owner_id: data?.owner_id,
+      expires_at: data?.expires_at,
+      ttl_days: data?.ttl_days,
+    };
   } catch (e: any) {
     return { ok: false, error: e?.message || String(e) };
   }
@@ -117,8 +143,13 @@ export async function runLogin(opts: LoginOptions): Promise<void> {
     err(`Login failed: ${r.error || "unknown error"}`);
     process.exit(1);
   }
-  saveOwnerLocal(r.owner_token, r.owner_id);
+  saveOwnerLocal(r.owner_token, r.owner_id, r.expires_at, r.ttl_days);
   ok(`Signed in. Saved to ${OWNER_FILE}`);
+  if (r.ttl_days) {
+    process.stderr.write(
+      `${C.dim}Token expires in ${r.ttl_days} days — re-run \`inbetweenai login\` after that.${C.reset}\n`,
+    );
+  }
   process.stderr.write(
     `\n${C.bold}Next:${C.reset} run ${C.cyan}inbetweenai claude${C.reset} (or ${C.cyan}codex${C.reset}) and paste a chat onboarding prompt to start working.\n\n`,
   );

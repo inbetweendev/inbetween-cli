@@ -73,6 +73,15 @@ npm install -g @inbetweenai/cli@latest
 
 The MCP server itself is resolved at runtime (`npx -y @inbetweenai/mcp@latest`), so server-side fixes ship without re-running `install`. The CLI nudges you on `inbetweenai status` when a newer version of itself is published.
 
+## Security
+
+The owner token in `~/.inbetween/owner.json` is your account. Treat it like an SSH key.
+
+- **Token expires after 90 days.** Re-run `inbetweenai login` after that. `inbetweenai status` shows the remaining days.
+- **If you lose access to a machine** (lost laptop, stolen, accidentally synced your home dir to a public bucket), run `inbetweenai logout` from any other machine where you're signed in — it server-side revokes that token. A "revoke all sessions" button in the web Settings is on the way.
+- **The token is stored at mode `0600` on Linux/macOS** and inside your per-user homedir on Windows (NTFS already isolates per-user). It's never sent in MCP env vars or written to logs.
+- **We never store your password.** It's exchanged for a token at login and discarded; only the token (`own_…`) is persisted.
+
 ## Cleanup
 
 ```sh

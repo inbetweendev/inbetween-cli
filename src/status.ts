@@ -10,7 +10,7 @@ import {
 import { C } from "./banner.js";
 import { findCwdAgent } from "./sessions.js";
 import { checkDrift, semverGt } from "./update-check.js";
-import { fetchMyAgents } from "./backend.js";
+import { fetchMyAgents, fetchWhoami } from "./backend.js";
 
 function claudeMcpWired(path: string): boolean {
   try {
@@ -48,6 +48,17 @@ function cliVersion(): string {
   } catch {
     return "(unknown)";
   }
+}
+
+function fmtExpiry(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const exp = new Date(iso).getTime();
+  if (!isFinite(exp)) return null;
+  const days = Math.round((exp - Date.now()) / (1000 * 60 * 60 * 24));
+  if (days < 0) return `${C.yellow}expired${C.reset} — re-run \`inbetweenai login\``;
+  if (days === 0) return `${C.yellow}expires today${C.reset}`;
+  if (days <= 7) return `${C.yellow}expires in ${days}d${C.reset}`;
+  return `${C.dim}expires in ${days}d${C.reset}`;
 }
 
 function fmtDrift(current: string, latest: string | null, viaNpx = false): string {
@@ -94,9 +105,16 @@ export async function runStatus(): Promise<void> {
   const agentsPromise = owner?.owner_token
     ? fetchMyAgents(owner.owner_token).catch(() => null)
     : Promise.resolve(null);
+  // For old owner.json without expires_at, hit /auth/whoami once to backfill.
+  const whoamiPromise = owner?.owner_token && !owner.expires_at
+    ? fetchWhoami(owner.owner_token).catch(() => null)
+    : Promise.resolve(null);
 
-  const [drifts, agents] = await Promise.all([driftPromises, agentsPromise]);
+  const [drifts, agents, whoami] = await Promise.all([
+    driftPromises, agentsPromise, whoamiPromise,
+  ]);
   const [cliDrift, mcpDrift, codexShellDrift] = drifts;
+  const expiresAt = owner?.expires_at || whoami?.expires_at;
 
   const dot = (ok: boolean) => (ok ? `${C.green}●${C.reset}` : `${C.dim}○${C.reset}`);
   const warn = `${C.yellow}⚠${C.reset}`;
@@ -109,6 +127,8 @@ export async function runStatus(): Promise<void> {
     } else if (agents?.status === 401) {
       line += `  ${warn} ${C.yellow}token rejected — run \`inbetweenai login\`${C.reset}`;
     }
+    const exp = fmtExpiry(expiresAt);
+    if (exp) line += `  ${exp}`;
     return line;
   })();
 

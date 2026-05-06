@@ -11,7 +11,7 @@ import {
 } from "./paths.js";
 import { C } from "./banner.js";
 import { checkDrift, semverGt } from "./update-check.js";
-import { fetchMyAgents } from "./backend.js";
+import { fetchMyAgents, fetchWhoami } from "./backend.js";
 
 const BACKEND_URL =
   process.env.INBETWEEN_BACKEND_URL || "https://inbetween.up.railway.app";
@@ -154,6 +154,35 @@ export async function runDoctor(): Promise<void> {
         ? "token revoked / expired — re-run `inbetweenai login`"
         : "transient backend error — retry shortly",
     });
+
+    // Owner token expiry — uses cached expires_at from owner.json, falls
+    // back to /auth/whoami if missing (old logins before TTL was added).
+    let expiresAt = owner.expires_at;
+    if (!expiresAt && my.ok) {
+      const w = await fetchWhoami(owner.owner_token);
+      if (w.ok) expiresAt = w.expires_at;
+    }
+    if (expiresAt) {
+      const days = Math.round(
+        (new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+      );
+      const expired = days < 0;
+      const soon = days >= 0 && days <= 7;
+      checks.push({
+        name: "owner token expiry",
+        ok: !expired,
+        detail: expired
+          ? `expired ${-days}d ago`
+          : days === 0
+          ? "expires today"
+          : `${days} days remaining`,
+        hint: expired
+          ? "re-run `inbetweenai login`"
+          : soon
+          ? "consider re-running `inbetweenai login` soon"
+          : undefined,
+      });
+    }
   }
 
   // Version drift
