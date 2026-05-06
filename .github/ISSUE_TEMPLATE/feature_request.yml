@@ -1,0 +1,36 @@
+name: Feature request
+description: Something you want the CLI to do that it doesn't.
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep it focused on **one** feature. Multi-feature issues get split anyway.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What's the user-facing pain that the feature solves? Skip "it would be nice if" — describe the situation that breaks today.
+      placeholder: |
+        I run InBetween in three projects and have to remember which one is signed in. `inbetweenai status` shows the active agent for the current cwd but doesn't tell me about other folders.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What should the CLI do? Sketch the command shape if you can.
+      placeholder: |
+        `inbetweenai status --all` lists every session file under `~/.inbetween/sessions/` with the agent name, chat id, and last-used time.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Anything you've tried instead. Helps us not re-suggest the dead-ends.
+    validations:
+      required: false
