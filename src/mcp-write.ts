@@ -61,15 +61,16 @@ export function writeClaudeMcp(opts: {
   json.mcpServers = json.mcpServers || {};
   // Drop old agentgram entry if present (rebrand cleanup).
   if (json.mcpServers.agentgram) delete json.mcpServers.agentgram;
-  // Windows: spawn `npx.cmd` directly. Wrapping with `cmd /c npx ...` adds
-  // a third process layer (cmd → npx → node) and stdio inheritance through
-  // cmd is unreliable — pipes get half-closed under load (rapid push/rename
-  // bursts) leaving the subprocess writing into EPIPE. Direct npx.cmd cuts
-  // out cmd entirely. Node spawn resolves .cmd via shellexec internally.
+  // Windows: cmd /c is required — Claude Code's MCP host uses Node
+  // child_process.spawn without `shell: true`, so `.cmd` files don't spawn
+  // directly (they need cmd.exe to interpret them). The cmd wrapper does
+  // make stdio under heavy load flaky, but mcp-side mitigations (stdin EOF
+  // watchdog + EPIPE-exit-on-first-error in 0.3.17+) handle the fallout
+  // gracefully so the subprocess re-spawns cleanly instead of zombie-ing.
   json.mcpServers.inbetween = IS_WIN
     ? {
-        command: "npx.cmd",
-        args: ["-y", MCP_PACKAGE],
+        command: "cmd",
+        args: ["/c", "npx", "-y", MCP_PACKAGE],
       }
     : {
         command: "npx",
@@ -162,9 +163,10 @@ export function writeCodexMcp(opts: {
   // duplicates that crash Codex's TOML parser.
   existing = stripExistingInbetweenBlock(existing);
 
-  // See Claude config note above — direct npx.cmd on Windows, no cmd /c wrapper.
-  const command = IS_WIN ? "npx.cmd" : "npx";
-  const args = ["-y", MCP_PACKAGE];
+  // See Claude config note above — Codex MCP host has the same Node-spawn
+  // constraint on Windows, so cmd wrapper is required.
+  const command = IS_WIN ? "cmd" : "npx";
+  const args = IS_WIN ? ["/c", "npx", "-y", MCP_PACKAGE] : ["-y", MCP_PACKAGE];
   const argsToml = JSON.stringify(args);
   const block = `${MCP_BLOCK_START}
 [mcp_servers.inbetween]
