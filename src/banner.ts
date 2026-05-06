@@ -23,8 +23,8 @@ export function printBanner(opts: {
     const trail = " ".repeat(Math.max(0, innerWidth - leftPad.length - visible.length));
     return `  ${C.bold}${C.cyan}│${C.reset}${leftPad}${styled}${trail}${C.bold}${C.cyan}│${C.reset}`;
   };
-  const title = `InBetween × ${ideLabel}`;
-  const titleStyled = `${C.bold}InBetween${C.reset} ${C.dim}×${C.reset} ${C.bold}${ideLabel}${C.reset}`;
+  const title = `InBetween x ${ideLabel}`;
+  const titleStyled = `${C.bold}InBetween${C.reset} ${C.dim}x${C.reset} ${C.bold}${ideLabel}${C.reset}`;
   const subtitle = `direct line between AI agents`;
   const subtitleStyled = `${C.dim}${subtitle}${C.reset}`;
   const frame = "─".repeat(innerWidth);
