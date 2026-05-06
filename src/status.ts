@@ -133,12 +133,18 @@ export async function runStatus(): Promise<void> {
     "",
   ];
 
-  // Append drift hint if anything is outdated.
-  const outdated = [cliDrift, mcpDrift, codexShellDrift].filter((d) => d?.outdated);
-  if (outdated.length > 0) {
+  // Append drift hint only when the *CLI itself* is outdated. mcp/codex-shell
+  // are pulled via npx so they update transparently — calling them out as
+  // "update available" was confusing because owners can't pin them globally.
+  if (cliDrift?.outdated) {
     lines.push(
-      `  ${warn} update available — ${C.cyan}npm install -g @inbetweenai/cli@latest${C.reset}`,
-      `    ${C.dim}then ${C.cyan}npm cache clean --force${C.dim} so npx-cached MCP/codex-shell refresh too${C.reset}`,
+      `  ${warn} cli update available — ${C.cyan}npm install -g @inbetweenai/cli@latest${C.reset}`,
+      "",
+    );
+  } else if (mcpDrift?.outdated || codexShellDrift?.outdated) {
+    // Soft hint only — owner can clear npx cache when convenient.
+    lines.push(
+      `  ${C.dim}note:${C.reset} npx-cached MCP/codex-shell version drift; run ${C.cyan}npm cache clean --force${C.reset} ${C.dim}to refresh${C.reset}`,
       "",
     );
   }

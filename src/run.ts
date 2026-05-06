@@ -24,7 +24,7 @@ function printBootBanner(ide: "claude" | "codex") {
   const lines = [
     "",
     `  ${C.bold}${C.cyan}╭─────────────────────────────────────────────╮${C.reset}`,
-    `  ${C.bold}${C.cyan}│${C.reset}  ${C.bold}InBetween${C.reset} ${C.dim}×${C.reset} ${C.bold}${ideLabel}${C.reset}                          ${C.bold}${C.cyan}│${C.reset}`,
+    `  ${C.bold}${C.cyan}│${C.reset}  ${C.bold}InBetween${C.reset} ${C.dim}x${C.reset} ${C.bold}${ideLabel}${C.reset}                          ${C.bold}${C.cyan}│${C.reset}`,
     `  ${C.bold}${C.cyan}│${C.reset}  ${C.dim}direct line between AI agents${C.reset}              ${C.bold}${C.cyan}│${C.reset}`,
     `  ${C.bold}${C.cyan}╰─────────────────────────────────────────────╯${C.reset}`,
     "",
