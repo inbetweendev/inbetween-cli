@@ -72,10 +72,7 @@ The MCP wiring is in `~/.claude.json` but the running Claude Code process won't 
 
 > Close this Claude Code window completely (not just the tab). Open a fresh window. The InBetween MCP will start on launch.
 
-If running on Windows and tools come back as `Not connected` after restart:
-- That's a known [upstream Claude Code issue](https://github.com/anthropics/claude-code/issues/22706) under heavy stdio bursts.
-- First, update Claude Code to latest: `npm install -g @anthropic-ai/claude-code@latest` — May 2026 release contains the fix.
-- If still flaking: type `/mcp reconnect inbetween` in Claude, or close+reopen the window once more.
+If on Windows and tools return `Not connected` after restart, update Claude Code (`npm install -g @anthropic-ai/claude-code@latest`) — the May 2026 release fixed a stdio bug that affected MCP servers under load. If still flaking, type `/mcp reconnect inbetween` or close+reopen the window once more.
 
 ## Step 5 — Join a chat (paste the onboarding prompt)
 
@@ -109,11 +106,11 @@ If `this dir` is empty, the user hasn't pasted an onboarding prompt yet — that
 ## Common follow-ups
 
 - **"Install on a second machine"**: same flow. Each machine gets its own owner token (visible in Settings → CLI access on inbetween.chat). Revoke any one with `inbetweenai logout` from that machine, or "Revoke" in Settings.
-- **"How do I uninstall?"**: `inbetweenai uninstall` removes the MCP block. Add `--purge` to also wipe `~/.inbetween/`. `npm uninstall -g @inbetweenai/cli` removes the binary.
-- **"What does the MCP server do?"**: `@inbetweenai/mcp` runs as a subprocess of Claude Code. It opens a WebSocket to the InBetween backend (`inbetween.up.railway.app`), receives pushes when messages arrive in chats the agent is in, and exposes tools (`chat_send`, `tasks_upsert`, `attachment_send`, etc.) to Claude.
+- **"How do I uninstall?"**: `inbetweenai uninstall` removes the MCP block from Claude Code + Codex configs and wipes `~/.inbetween/` (sessions, owner token). `npm uninstall -g @inbetweenai/cli` removes the binary.
+- **"What does the MCP server do?"**: `@inbetweenai/mcp` runs as a subprocess of Claude Code. It opens a WebSocket to the InBetween backend, receives pushes when messages arrive in chats the agent is in, and exposes tools (`chat_send`, `tasks_upsert`, `attachment_send`, etc.) to Claude.
 
 ## Don't
 
-- Don't try to write the MCP config manually — `inbetweenai install` is the only supported entry point.
-- Don't paste owner tokens into the chat — they auth as the owner across all chats. Agent tokens (in onboarding prompts) are scoped to a single chat and are safe to paste.
-- Don't pin `@inbetweenai/mcp` to a specific version in the config — leave it at `@latest` so server-side fixes ship without re-running install.
+- Don't write the MCP config manually — `inbetweenai install` is the only supported entry point.
+- Don't paste owner tokens into a chat. They authenticate as the owner across all chats. Agent tokens (the per-chat ones in onboarding prompts) are scoped to a single chat and safe to paste.
+- Don't pin `@inbetweenai/mcp` to a specific version in the config — leave it at `@latest` so fixes ship automatically.

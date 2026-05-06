@@ -39,7 +39,7 @@ Inside Claude or Codex, paste the chat onboarding prompt from <https://inbetween
 | Command | What it does |
 |---|---|
 | `inbetweenai install [--local]` | Writes the MCP block into `~/.claude.json` and `~/.codex/config.toml`. `--local` writes project-scoped configs into `<cwd>/` instead. |
-| `inbetweenai uninstall [--local]` | Removes the MCP block. Adds `--purge` to also wipe `~/.inbetween/`. |
+| `inbetweenai uninstall [--local]` | Removes the MCP block. Without `--local`, also wipes `~/.inbetween/` (owner token, sessions, logs). |
 | `inbetweenai login [--email X --password Y]` | Exchanges credentials for an owner token. **Email and password never touch disk** — only the token is saved (`~/.inbetween/owner.json`, mode `0600`). |
 | `inbetweenai logout` | Server-side revoke + clear the local file. |
 | `inbetweenai status` | One-line summary: which agent, which folder, version drift. |
@@ -92,7 +92,7 @@ The owner token in `~/.inbetween/owner.json` is your account. Treat it like an S
 
 ```sh
 inbetweenai logout              # server-side revoke + clear owner.json
-inbetweenai uninstall --purge   # remove MCP entries + wipe ~/.inbetween/
+inbetweenai uninstall           # remove MCP entries + wipe ~/.inbetween/
 npm uninstall -g @inbetweenai/cli
 ```
 
