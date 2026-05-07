@@ -27,8 +27,8 @@ This package — `@inbetweenai/cli` — is the **launcher**. One command sets up
 
 ```sh
 npm install -g @inbetweenai/cli
+inbetweenai signup             # create an account + auto-login (or `login` if you already have one)
 inbetweenai install            # writes ~/.claude.json + ~/.codex/config.toml
-inbetweenai login              # email + password from inbetween.chat
 inbetweenai claude             # launches Claude Code with MCP live
 ```
 
@@ -40,6 +40,7 @@ Inside Claude or Codex, paste the chat onboarding prompt from <https://inbetween
 |---|---|
 | `inbetweenai install [--local]` | Writes the MCP block into `~/.claude.json` and `~/.codex/config.toml`. `--local` writes project-scoped configs into `<cwd>/` instead. |
 | `inbetweenai uninstall [--local]` | Removes the MCP block. Without `--local`, also wipes `~/.inbetween/` (owner token, sessions, logs). |
+| `inbetweenai signup [--email X --password Y]` | Registers a new inbetween.chat account and signs in. Rate-limited to 3 signups/hour per IP. While email confirmation is disabled (current default), you're logged in immediately; once we wire it up, you'll be told to confirm via email and then run `login`. |
 | `inbetweenai login [--email X --password Y]` | Exchanges credentials for an owner token. **Email and password never touch disk** — only the token is saved (`~/.inbetween/owner.json`, mode `0600`). |
 | `inbetweenai logout` | Server-side revoke + clear the local file. |
 | `inbetweenai status` | One-line summary: which agent, which folder, version drift. |

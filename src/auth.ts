@@ -155,6 +155,145 @@ export async function runLogin(opts: LoginOptions): Promise<void> {
   );
 }
 
+async function cliSignup(
+  email: string,
+  password: string,
+): Promise<{
+  ok: boolean;
+  pending_confirmation?: boolean;
+  owner_token?: string;
+  owner_id?: string;
+  expires_at?: string;
+  ttl_days?: number;
+  error?: string;
+  status?: number;
+}> {
+  try {
+    const res = await fetch(`${DEFAULT_BACKEND_URL}/auth/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      let detail = `${res.status} ${res.statusText}`;
+      try {
+        const body: any = await res.json();
+        if (body?.detail) detail = body.detail;
+      } catch {}
+      return { ok: false, error: detail, status: res.status };
+    }
+    const data: any = await res.json();
+    return {
+      ok: true,
+      pending_confirmation: !!data?.pending_confirmation,
+      owner_token: data?.owner_token,
+      owner_id: data?.owner_id,
+      expires_at: data?.expires_at,
+      ttl_days: data?.ttl_days,
+    };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+}
+
+export interface SignupOptions {
+  email?: string;
+  password?: string;
+  nonInteractive?: boolean;
+}
+
+export async function runSignup(opts: SignupOptions): Promise<void> {
+  let email = opts.email?.trim();
+  let password = opts.password;
+
+  if (!email || !password) {
+    if (opts.nonInteractive) {
+      err("--email and --password required in --non-interactive mode");
+      process.exit(1);
+    }
+    process.stderr.write(
+      `Create your ${C.cyan}inbetween.chat${C.reset} account.\n\n`,
+    );
+    if (!email) {
+      const ans = await prompts({
+        type: "text",
+        name: "v",
+        message: "Email",
+        validate: (v: string) =>
+          v.includes("@") && v.length >= 3 ? true : "Looks like that's not an email",
+      });
+      email = (ans.v || "").trim();
+    }
+    if (!password) {
+      const ans = await prompts([
+        {
+          type: "password",
+          name: "p1",
+          message: "Password (min 8 chars)",
+          validate: (v: string) =>
+            v && v.length >= 8 ? true : "Password must be at least 8 characters",
+        },
+        {
+          type: "password",
+          name: "p2",
+          message: "Confirm password",
+        },
+      ]);
+      if (!ans.p1 || ans.p1 !== ans.p2) {
+        err("Passwords do not match.");
+        process.exit(1);
+      }
+      password = ans.p1;
+    }
+  }
+
+  if (!email || !password) {
+    err("Email and password are required.");
+    process.exit(1);
+  }
+  if (password.length < 8) {
+    err("Password must be at least 8 characters.");
+    process.exit(1);
+  }
+
+  info("Registering...");
+  const r = await cliSignup(email, password);
+  if (!r.ok) {
+    if (r.status === 409) {
+      err(`Email already registered. Try \`inbetweenai login\` instead.`);
+    } else if (r.status === 429) {
+      err(`Rate limited: ${r.error}`);
+    } else {
+      err(`Signup failed: ${r.error || "unknown error"}`);
+    }
+    process.exit(1);
+  }
+
+  if (r.pending_confirmation) {
+    ok(`Account created for ${email}.`);
+    process.stderr.write(
+      `\n${C.bold}Next:${C.reset} check your inbox for a confirmation email, then run ${C.cyan}inbetweenai login${C.reset}.\n\n`,
+    );
+    return;
+  }
+
+  if (!r.owner_token) {
+    err("Signup succeeded but no token returned. Try `inbetweenai login`.");
+    process.exit(1);
+  }
+
+  saveOwnerLocal(r.owner_token, r.owner_id, r.expires_at, r.ttl_days);
+  ok(`Account created and signed in. Saved to ${OWNER_FILE}`);
+  if (r.ttl_days) {
+    process.stderr.write(
+      `${C.dim}Token expires in ${r.ttl_days} days — re-run \`inbetweenai login\` after that.${C.reset}\n`,
+    );
+  }
+  process.stderr.write(
+    `\n${C.bold}Next:${C.reset} run ${C.cyan}inbetweenai install${C.reset} to wire MCP into Claude/Codex, then ${C.cyan}inbetweenai claude${C.reset}.\n\n`,
+  );
+}
+
 async function revokeOwnerTokenServerSide(token: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(`${DEFAULT_BACKEND_URL}/auth/cli-logout`, {

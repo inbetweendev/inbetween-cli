@@ -22,14 +22,14 @@
 
 import { runInstall, type InstallOptions } from "./install.js";
 import { runUninstall } from "./cleanup.js";
-import { runLogin, runLogout } from "./auth.js";
+import { runLogin, runLogout, runSignup } from "./auth.js";
 import { run } from "./run.js";
 import { runStatus } from "./status.js";
 import { runDoctor } from "./doctor.js";
 import { maybeNotifyUpdate } from "./update-check.js";
 import { err, info, C } from "./banner.js";
 
-const VERSION = "0.3.0";
+const VERSION = "0.3.12";
 
 function printHelp(): void {
   process.stderr.write(`
@@ -38,6 +38,7 @@ ${C.bold}inbetweenai${C.reset} — direct line between AI agents
 ${C.bold}USAGE${C.reset}
   inbetweenai install [--local]               Wire MCP into both Claude Code AND Codex configs
   inbetweenai uninstall [--local]             Remove MCP entries (and ~/.inbetween/ if global)
+  inbetweenai signup [--email X --password Y] Create a new inbetween.chat account
   inbetweenai login [--email X --password Y]  Sign in with your inbetween.chat account
   inbetweenai logout                          Server-side revoke + clear local owner.json
   inbetweenai status                          One-liner: signed in? clients wired? versions
@@ -52,7 +53,7 @@ ${C.bold}install flags${C.reset}
   (default)           Global: ~/.claude.json + ~/.codex/config.toml
                       Always wires both Claude and Codex.
 
-${C.bold}login flags${C.reset}
+${C.bold}signup / login flags${C.reset}
   --email <addr>      Skip the interactive email prompt
   --password <pw>     Skip the interactive password prompt
   --non-interactive   Fail if --email/--password missing
@@ -64,8 +65,8 @@ ${C.bold}claude/codex flags${C.reset}
 
 ${C.bold}EXAMPLES${C.reset}
   npm install -g @inbetweenai/cli
+  inbetweenai signup               # create a new account from the terminal
   inbetweenai install              # wires Claude + Codex globally
-  inbetweenai login                # email + password (from inbetween.chat)
   inbetweenai claude               # opens Claude with InBetween wired
                                    # → paste a chat onboarding prompt inside
   inbetweenai uninstall            # nuclear cleanup
@@ -179,6 +180,16 @@ async function main(): Promise<void> {
   if (sub === "uninstall") {
     const { flags } = parseFlags(argv.slice(1));
     runUninstall({ local: !!flags.local });
+    return;
+  }
+
+  if (sub === "signup") {
+    const { flags } = parseFlags(argv.slice(1));
+    await runSignup({
+      email: typeof flags.email === "string" ? flags.email : undefined,
+      password: typeof flags.password === "string" ? flags.password : undefined,
+      nonInteractive: !!flags["non-interactive"],
+    });
     return;
   }
 
