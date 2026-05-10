@@ -158,11 +158,13 @@ export async function runLogin(opts: LoginOptions): Promise<void> {
 async function cliSignup(
   email: string,
   password: string,
+  handle: string,
 ): Promise<{
   ok: boolean;
   pending_confirmation?: boolean;
   owner_token?: string;
   owner_id?: string;
+  handle?: string;
   expires_at?: string;
   ttl_days?: number;
   error?: string;
@@ -172,7 +174,7 @@ async function cliSignup(
     const res = await fetch(`${DEFAULT_BACKEND_URL}/auth/signup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, handle }),
     });
     if (!res.ok) {
       let detail = `${res.status} ${res.statusText}`;
@@ -188,6 +190,7 @@ async function cliSignup(
       pending_confirmation: !!data?.pending_confirmation,
       owner_token: data?.owner_token,
       owner_id: data?.owner_id,
+      handle: data?.handle,
       expires_at: data?.expires_at,
       ttl_days: data?.ttl_days,
     };
@@ -196,19 +199,34 @@ async function cliSignup(
   }
 }
 
+// Mirror of backend `_HANDLE_RE` in auth/routes.py — keep them in sync.
+const HANDLE_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{2,31}$/;
+
+function validateHandle(raw: string): string | null {
+  const v = (raw || "").trim();
+  if (!v) return "Handle is required";
+  if (!HANDLE_RE.test(v))
+    return "3-32 chars: latin letters, digits, dash or underscore; must start with a letter or digit";
+  if (v.toLowerCase().startsWith("owner-"))
+    return "`owner-…` is reserved (auto-handle prefix)";
+  return null;
+}
+
 export interface SignupOptions {
   email?: string;
   password?: string;
+  handle?: string;
   nonInteractive?: boolean;
 }
 
 export async function runSignup(opts: SignupOptions): Promise<void> {
   let email = opts.email?.trim();
   let password = opts.password;
+  let handle = opts.handle?.trim();
 
-  if (!email || !password) {
+  if (!email || !password || !handle) {
     if (opts.nonInteractive) {
-      err("--email and --password required in --non-interactive mode");
+      err("--email, --password and --handle required in --non-interactive mode");
       process.exit(1);
     }
     process.stderr.write(
@@ -223,6 +241,15 @@ export async function runSignup(opts: SignupOptions): Promise<void> {
           v.includes("@") && v.length >= 3 ? true : "Looks like that's not an email",
       });
       email = (ans.v || "").trim();
+    }
+    if (!handle) {
+      const ans = await prompts({
+        type: "text",
+        name: "v",
+        message: "Handle (your @username — others will see this)",
+        validate: (v: string) => validateHandle(v) || true,
+      });
+      handle = (ans.v || "").trim();
     }
     if (!password) {
       const ans = await prompts([
@@ -247,20 +274,28 @@ export async function runSignup(opts: SignupOptions): Promise<void> {
     }
   }
 
-  if (!email || !password) {
-    err("Email and password are required.");
+  if (!email || !password || !handle) {
+    err("Email, password and handle are required.");
     process.exit(1);
   }
   if (password.length < 8) {
     err("Password must be at least 8 characters.");
     process.exit(1);
   }
+  const handleErr = validateHandle(handle);
+  if (handleErr) {
+    err(`Handle: ${handleErr}`);
+    process.exit(1);
+  }
 
   info("Registering...");
-  const r = await cliSignup(email, password);
+  const r = await cliSignup(email, password, handle);
   if (!r.ok) {
     if (r.status === 409) {
-      err(`Email already registered. Try \`inbetweenai login\` instead.`);
+      // Backend returns 409 for both "email already registered" and
+      // "handle already taken"; surface the server's message verbatim so the
+      // user sees which one tripped.
+      err(r.error || "Already registered.");
     } else if (r.status === 429) {
       err(`Rate limited: ${r.error}`);
     } else {
@@ -270,7 +305,7 @@ export async function runSignup(opts: SignupOptions): Promise<void> {
   }
 
   if (r.pending_confirmation) {
-    ok(`Account created for ${email}.`);
+    ok(`Account created for ${email} as @${r.handle || handle}.`);
     process.stderr.write(
       `\n${C.bold}Next:${C.reset} check your inbox for a confirmation email, then run ${C.cyan}inbetweenai login${C.reset}.\n\n`,
     );
@@ -283,7 +318,7 @@ export async function runSignup(opts: SignupOptions): Promise<void> {
   }
 
   saveOwnerLocal(r.owner_token, r.owner_id, r.expires_at, r.ttl_days);
-  ok(`Account created and signed in. Saved to ${OWNER_FILE}`);
+  ok(`Account created and signed in as @${r.handle || handle}. Saved to ${OWNER_FILE}`);
   if (r.ttl_days) {
     process.stderr.write(
       `${C.dim}Token expires in ${r.ttl_days} days — re-run \`inbetweenai login\` after that.${C.reset}\n`,
