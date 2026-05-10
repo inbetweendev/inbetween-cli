@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * inbetweenai — InBetween launcher CLI.
  *
