@@ -232,6 +232,15 @@ export async function runSignup(opts: SignupOptions): Promise<void> {
     process.stderr.write(
       `Create your ${C.cyan}inbetween.chat${C.reset} account.\n\n`,
     );
+    if (!handle) {
+      const ans = await prompts({
+        type: "text",
+        name: "v",
+        message: "Username (your @handle — others will see this)",
+        validate: (v: string) => validateHandle(v) || true,
+      });
+      handle = (ans.v || "").trim();
+    }
     if (!email) {
       const ans = await prompts({
         type: "text",
@@ -241,15 +250,6 @@ export async function runSignup(opts: SignupOptions): Promise<void> {
           v.includes("@") && v.length >= 3 ? true : "Looks like that's not an email",
       });
       email = (ans.v || "").trim();
-    }
-    if (!handle) {
-      const ans = await prompts({
-        type: "text",
-        name: "v",
-        message: "Handle (your @username — others will see this)",
-        validate: (v: string) => validateHandle(v) || true,
-      });
-      handle = (ans.v || "").trim();
     }
     if (!password) {
       const ans = await prompts([
