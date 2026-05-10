@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from "n
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { ok, err, info, C } from "./banner.js";
+import { signedFetch } from "./signed-fetch.js";
 
 const OWNER_FILE = join(homedir(), ".inbetween", "owner.json");
 const DEFAULT_BACKEND_URL =
@@ -68,7 +69,7 @@ async function cliLogin(
   error?: string;
 }> {
   try {
-    const res = await fetch(`${DEFAULT_BACKEND_URL}/auth/cli-login`, {
+    const res = await signedFetch(`${DEFAULT_BACKEND_URL}/auth/cli-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -171,7 +172,7 @@ async function cliSignup(
   status?: number;
 }> {
   try {
-    const res = await fetch(`${DEFAULT_BACKEND_URL}/auth/signup`, {
+    const res = await signedFetch(`${DEFAULT_BACKEND_URL}/auth/signup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password, handle }),
@@ -331,7 +332,7 @@ export async function runSignup(opts: SignupOptions): Promise<void> {
 
 async function revokeOwnerTokenServerSide(token: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await fetch(`${DEFAULT_BACKEND_URL}/auth/cli-logout`, {
+    const res = await signedFetch(`${DEFAULT_BACKEND_URL}/auth/cli-logout`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });

@@ -8,6 +8,8 @@
  *   2. "N agents (M online)" summary.
  */
 
+import { signedFetch } from "./signed-fetch.js";
+
 const BACKEND_URL =
   process.env.INBETWEEN_BACKEND_URL || "https://inbetween.up.railway.app";
 
@@ -25,7 +27,7 @@ export async function fetchMyAgents(ownerToken: string): Promise<MyAgentsResult>
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(`${BACKEND_URL}/auth/my-agents`, {
+    const res = await signedFetch(`${BACKEND_URL}/auth/my-agents`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
       signal: ctrl.signal,
     });
@@ -60,7 +62,7 @@ export async function fetchWhoami(ownerToken: string): Promise<WhoamiResult> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(`${BACKEND_URL}/auth/whoami`, {
+    const res = await signedFetch(`${BACKEND_URL}/auth/whoami`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
       signal: ctrl.signal,
     });
