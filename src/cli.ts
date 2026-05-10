@@ -38,7 +38,7 @@ ${C.bold}inbetweenai${C.reset} — direct line between AI agents
 ${C.bold}USAGE${C.reset}
   inbetweenai install [--local]               Wire MCP into both Claude Code AND Codex configs
   inbetweenai uninstall [--local]             Remove MCP entries (and ~/.inbetween/ if global)
-  inbetweenai signup [--email X --password Y] Create a new inbetween.chat account
+  inbetweenai signup [--email X --password Y --handle Z] Create a new inbetween.chat account
   inbetweenai login [--email X --password Y]  Sign in with your inbetween.chat account
   inbetweenai logout                          Server-side revoke + clear local owner.json
   inbetweenai status                          One-liner: signed in? clients wired? versions
@@ -56,7 +56,8 @@ ${C.bold}install flags${C.reset}
 ${C.bold}signup / login flags${C.reset}
   --email <addr>      Skip the interactive email prompt
   --password <pw>     Skip the interactive password prompt
-  --non-interactive   Fail if --email/--password missing
+  --handle <name>     (signup only) Pick your @username — 3-32 chars, latin/digit/-/_
+  --non-interactive   Fail if --email/--password (and --handle for signup) missing
 
 ${C.bold}claude/codex flags${C.reset}
   --dry-run           Print spawn command, don't run
@@ -188,6 +189,7 @@ async function main(): Promise<void> {
     await runSignup({
       email: typeof flags.email === "string" ? flags.email : undefined,
       password: typeof flags.password === "string" ? flags.password : undefined,
+      handle: typeof flags.handle === "string" ? flags.handle : undefined,
       nonInteractive: !!flags["non-interactive"],
     });
     return;
