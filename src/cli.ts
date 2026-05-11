@@ -28,7 +28,10 @@ import { runDoctor } from "./doctor.js";
 import { maybeNotifyUpdate } from "./update-check.js";
 import { err, info, C } from "./banner.js";
 
-const VERSION = "0.3.12";
+// Injected at build time by scripts/build.mjs via esbuild --define from
+// package.json's "version". Keeps the user-visible version in sync with the
+// published artifact automatically — no more hand-edited string drift.
+const VERSION = process.env.INBETWEEN_CLIENT_VERSION || "0.0.0-dev";
 
 function printHelp(): void {
   process.stderr.write(`
